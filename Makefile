@@ -15,12 +15,16 @@ LIBS :=
 SRC_FILES := $(filter-out ./src/TILES.c ./src/LEVEL.c, $(wildcard ./src/*.c))
 BIN_DIR := ./bin
 BIN := $(BIN_DIR)/hh
+RES_DIR := ./res
 
 build: bin-dir
 	$(CC) $(CFLAGS) $(LIBS) $(SRC_FILES) -o $(BIN) $(LDFLAGS)
 
 bin-dir:
-	mkdir -p $(BIN_DIR)
+	@mkdir -p $(BIN_DIR)
+
+res-dir:
+	@mkdir -p $(RES_DIR)
 
 debug: debug-build
 	$(DBG_BIN) $(BIN) $(ARGS)
@@ -28,12 +32,12 @@ debug: debug-build
 debug-build: bin-dir
 	$(CC) $(CFLAGS) -g $(LIBS) $(SRC_FILES) -o $(BIN) $(LDFLAGS)
 
-extract-tiles: bin-dir
-	$(CC) $(CFLAGS) $(LIBS) ./src/TILES.c -o ./bin/tx $(LDFLAGS)
+extract-tiles: bin-dir res-dir
+	$(CC) $(CFLAGS) $(LIBS) ./src/tiles.c -o ./bin/tx $(LDFLAGS)
 	./bin/tx
 
-extract-level: bin-dir
-	$(CC) $(CFLAGS) $(LIBS) ./src/LEVEL.c -o ./bin/tx $(LDFLAGS)
+extract-levels: bin-dir res-dir
+	$(CC) $(CFLAGS) $(LIBS) ./src/level.c -o ./bin/tx $(LDFLAGS)
 	./bin/tx
 
 run: build
