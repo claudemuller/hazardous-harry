@@ -43,6 +43,8 @@ typedef struct {
 
     uint8_t collision_point[9];
     uint8_t on_ground;
+    uint8_t check_pickup_x;
+    uint8_t check_pickup_y;
 } player_t;
 
 typedef struct {

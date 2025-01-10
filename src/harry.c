@@ -20,6 +20,7 @@ static void update(float dt);
 static void scroll_screen(void);
 static void check_player_move(void);
 static void move_player(float dt);
+static void pickup_item(uint8_t, uint8_t);
 static void clear_input(void);
 
 static void render(void);
@@ -132,6 +133,7 @@ int game_run(void)
         game->ticks_last_frame = current_ticks;
 
         check_collisions();
+        pickup_item(game->player.check_pickup_x, game->player.check_pickup_y);
         update(dt);
         render();
 
@@ -355,6 +357,29 @@ static void move_player(float dt)
     }
 }
 
+static void pickup_item(uint8_t grid_x, uint8_t grid_y)
+{
+    if (!grid_x || !grid_y) {
+        return;
+    }
+
+    uint8_t type = game->level[game->cur_level].tiles[grid_y * 100 + grid_x];
+
+    char pickup_msg[256];
+    sprintf(pickup_msg, "picked up item: %d", type);
+    log_info("pickup_item", pickup_msg);
+
+    switch (type) {
+    default:
+        break;
+    }
+
+    game->level[game->cur_level].tiles[grid_y * 100 + grid_x] = 0;
+
+    game->player.check_pickup_x = 0;
+    game->player.check_pickup_y = 0;
+}
+
 static void clear_input(void)
 {
     game->player.try_right = 0;
@@ -418,8 +443,25 @@ static uint8_t is_clear(uint16_t px, uint16_t py)
         return 0;
     } break;
 
-    default: {
-        return 1;
-    } break;
+    default:
+        break;
     }
+
+    switch (type) {
+    case 10:
+    case 47:
+    case 48:
+    case 49:
+    case 50:
+    case 51:
+    case 52: {
+        game->player.check_pickup_x = grid_x;
+        game->player.check_pickup_y = grid_y;
+    } break;
+
+    default:
+        break;
+    }
+
+    return 1;
 }
