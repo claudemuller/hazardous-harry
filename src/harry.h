@@ -9,6 +9,8 @@
 
 #define TILE_SIZE 16
 #define NUM_TILES 158
+
+#define FPS 30
 #define DISPLAY_SCALE 3
 
 struct level_t {
@@ -22,6 +24,7 @@ struct game_state_t {
     uint8_t cur_level;
     uint8_t view_x;
     uint8_t view_y;
+    int8_t scroll_x;
 
     struct level_t level[10];
 };

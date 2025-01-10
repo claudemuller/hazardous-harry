@@ -1,8 +1,11 @@
 #include "harry.h"
+#include "SDL.h"
 #include "SDL_render.h"
 #include "SDL_surface.h"
+#include "SDL_timer.h"
 #include "error.h"
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 static struct game_state_t *game;
@@ -25,6 +28,7 @@ int game_init(void)
     game->view_x = 0;
     game->view_y = 0;
     game->cur_level = 0;
+    game->scroll_x = 0;
 
     for (int i = 0; i < 10; i++) {
         fname[0] = '\0';
@@ -77,13 +81,23 @@ int game_init(void)
 
 int game_run(void)
 {
+    uint32_t timer_start, timer_end, delay;
+
     SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0x00);
     SDL_RenderClear(renderer);
 
     while (game->is_running) {
+        timer_start = SDL_GetTicks();
+
         game_process_input();
         game_update();
         game_render();
+
+        timer_end = SDL_GetTicks();
+
+        delay = FPS - (timer_end - timer_start);
+        delay = delay > 33 ? 0 : delay;
+        SDL_Delay(delay);
     }
 
     return SUCCESS;
@@ -95,7 +109,6 @@ int game_init_assets(void)
     char file_num[4];
 
     for (size_t i = 0; i < NUM_TILES; i++) {
-        /* Make new file */
         fname[0] = '\0';
         strcat(fname, "res/tile");
         sprintf(&file_num[0], "%u", (int)i);
@@ -129,11 +142,52 @@ void game_process_input(void)
         if (event.key.keysym.sym == SDLK_ESCAPE) {
             game->is_running = false;
         }
+
+        if (event.key.keysym.sym == SDLK_RIGHT) {
+            game->scroll_x = 15;
+        }
+
+        if (event.key.keysym.sym == SDLK_LEFT) {
+            game->scroll_x = -15;
+        }
+
+        if (event.key.keysym.sym == SDLK_DOWN) {
+            game->cur_level++;
+        }
+
+        if (event.key.keysym.sym == SDLK_UP) {
+            game->cur_level--;
+        }
     } break;
     }
 }
 
-void game_update(void) {}
+void game_update(void)
+{
+    if (game->cur_level == 0xff) {
+        game->cur_level = 0;
+    }
+    if (game->cur_level > 9) {
+        game->cur_level = 9;
+    }
+
+    if (game->scroll_x > 0) {
+        if (game->view_x == 80) {
+            game->scroll_x = 0;
+        } else {
+            game->view_x++;
+            game->scroll_x--;
+        }
+    }
+    if (game->scroll_x < 0) {
+        if (game->view_x == 0) {
+            game->scroll_x = 0;
+        } else {
+            game->view_x--;
+            game->scroll_x++;
+        }
+    }
+}
 
 void game_render(void)
 {
@@ -159,9 +213,10 @@ void game_render(void)
 
 int game_destroy(void)
 {
+    free(assets);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
-    free(assets);
+    SDL_Quit();
     free(game);
 
     return SUCCESS;
