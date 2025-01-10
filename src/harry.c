@@ -1,5 +1,6 @@
 #include "harry.h"
 #include "SDL.h"
+#include "SDL_rect.h"
 #include "SDL_render.h"
 #include "SDL_surface.h"
 #include "SDL_timer.h"
@@ -29,6 +30,10 @@ int game_init(void)
     game->view_y = 0;
     game->cur_level = 0;
     game->scroll_x = 0;
+    game->player_x = PLAYER_START_X;
+    game->player_y = PLAYER_START_Y;
+    game->player_px = game->player_x * TILE_SIZE;
+    game->player_py = game->player_y * TILE_SIZE;
 
     for (int i = 0; i < 10; i++) {
         fname[0] = '\0';
@@ -82,9 +87,6 @@ int game_init(void)
 int game_run(void)
 {
     uint32_t timer_start, timer_end, delay;
-
-    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0x00);
-    SDL_RenderClear(renderer);
 
     while (game->is_running) {
         timer_start = SDL_GetTicks();
@@ -191,6 +193,17 @@ void game_update(void)
 
 void game_render(void)
 {
+    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0x00);
+    SDL_RenderClear(renderer);
+
+    game_render_world();
+    game_render_player();
+
+    SDL_RenderPresent(renderer);
+}
+
+void game_render_world(void)
+{
     uint8_t tile_index;
     SDL_Rect dest = {
         .w = TILE_SIZE,
@@ -207,8 +220,17 @@ void game_render(void)
             SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
         }
     }
+}
 
-    SDL_RenderPresent(renderer);
+void game_render_player(void)
+{
+    SDL_Rect dest = {
+        .x = game->player_px,
+        .y = game->player_py,
+        .w = PLAYER_W,
+        .h = PLAYER_H,
+    };
+    SDL_RenderCopy(renderer, assets->gfx_tiles[PLAYER_TILE], NULL, &dest);
 }
 
 int game_destroy(void)
