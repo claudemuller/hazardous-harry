@@ -38,6 +38,10 @@ typedef struct {
     uint8_t right;
     uint8_t left;
     uint8_t jump;
+    uint8_t jump_timer;
+
+    uint8_t collision_point[9];
+    uint8_t on_ground;
 } player_t;
 
 typedef struct {
