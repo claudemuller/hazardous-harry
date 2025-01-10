@@ -1,4 +1,5 @@
 #include "harry.h"
+#include "SDL_error.h"
 #include "error.h"
 #include <stdlib.h>
 
@@ -9,14 +10,14 @@ SDL_Renderer *renderer;
 
 int game_init(void)
 {
+
     FILE *fd_level;
     char fname[16];
     char file_num[4];
 
     game = malloc(sizeof(struct game_state_t));
     if (!game) {
-        fprintf(stderr, "Error allocating memory for game state.\n");
-        return ERR_ALLOC;
+        return err_fatal(ERR_ALLOC, "game state");
     }
 
     game->is_running = false;
@@ -33,31 +34,23 @@ int game_init(void)
 
         fd_level = fopen(fname, "rb");
         if (!fd_level) {
-            // TODO(claude): return error
-            fprintf(stderr, "Error opening file %s\n", fname);
-            return ERR_OPENING_FILE;
+            return err_fatal(ERR_OPENING_FILE, fname);
         }
     }
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        SDL_Log("SDL init error: %s\n", SDL_GetError());
-        return ERR_SDL_INIT;
+        return err_fatal(ERR_SDL_INIT, SDL_GetError());
     }
 
-    SDL_Window *window;
-    SDL_Renderer *renderer;
-
     if (SDL_CreateWindowAndRenderer(320 * DISPLAY_SCALE, 200 * DISPLAY_SCALE, 0, &window, &renderer) != 0) {
-        SDL_Log("SDL window/renderer error: %s\n", SDL_GetError());
-        return ERR_SDL_CREATE_WIN_RENDER;
+        return err_fatal(ERR_SDL_CREATE_WIN_RENDER, SDL_GetError());
     }
 
     SDL_RenderSetScale(renderer, DISPLAY_SCALE, DISPLAY_SCALE);
 
     assets = malloc(sizeof(struct game_assets_t));
     if (!assets) {
-        fprintf(stderr, "Error allocating memory for game assets.\n");
-        return ERR_ALLOC;
+        return err_fatal(ERR_ALLOC, "game assets");
     }
     game_init_assets();
 

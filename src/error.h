@@ -1,6 +1,7 @@
 #ifndef ERROR_H
 #define ERROR_H
 
+// TODO(claude): have this alongside the messages for clarity
 enum {
     SUCCESS,
     ERR_ALLOC,
@@ -9,6 +10,10 @@ enum {
     ERR_SDL_CREATE_WIN_RENDER,
 };
 
-void err_handle(int);
+extern char err_additional[256];
+extern const char *err_messages[];
+
+void err_handle(const int);
+int err_fatal(const int, const char *);
 
 #endif // !ERROR_H
