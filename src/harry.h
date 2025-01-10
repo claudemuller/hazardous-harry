@@ -15,17 +15,32 @@
 #define PLAYER_H 16
 #define PLAYER_START_X 2
 #define PLAYER_START_Y 8
+#define PLAYER_MOVE 2
 
 #define FPS 30
 #define DISPLAY_SCALE 3
 
-struct level_t {
+typedef struct {
     uint8_t path[256];
     uint8_t tiles[1000];
     uint8_t padding[24];
-};
+} level_t;
 
-struct game_state_t {
+typedef struct {
+    uint8_t x;
+    uint8_t y;
+    uint16_t px;
+    uint16_t py;
+
+    uint8_t try_right;
+    uint8_t try_left;
+    uint8_t try_jump;
+    uint8_t right;
+    uint8_t left;
+    uint8_t jump;
+} player_t;
+
+typedef struct {
     bool is_running;
     uint8_t cur_level;
 
@@ -33,26 +48,16 @@ struct game_state_t {
     uint8_t view_y;
     int8_t scroll_x;
 
-    uint8_t player_x;
-    uint8_t player_y;
-    uint16_t player_px;
-    uint16_t player_py;
+    player_t player;
+    level_t level[10];
+} game_state_t;
 
-    struct level_t level[10];
-};
-
-struct game_assets_t {
+typedef struct {
     SDL_Texture *gfx_tiles[NUM_TILES];
-};
+} game_assets_t;
 
 int game_init(void);
 int game_run(void);
-int game_init_assets(void);
-void game_process_input(void);
-void game_update(void);
-void game_render(void);
-void game_render_world(void);
-void game_render_player(void);
 int game_destroy(void);
 
 #endif // !HARRY_H
