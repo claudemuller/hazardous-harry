@@ -1,5 +1,6 @@
 #include "harry.h"
 #include "error.h"
+#include <stddef.h>
 #include <stdlib.h>
 
 static struct game_state_t *game;
@@ -36,6 +37,18 @@ int game_init(void)
         if (!fd_level) {
             return err_fatal(ERR_OPENING_FILE, fname);
         }
+
+        for (size_t j = 0; j < sizeof(game->level[i].path); j++) {
+            game->level[i].path[j] = fgetc(fd_level);
+        }
+        for (size_t j = 0; j < sizeof(game->level[i].tiles); j++) {
+            game->level[i].tiles[j] = fgetc(fd_level);
+        }
+        for (size_t j = 0; j < sizeof(game->level[i].padding); j++) {
+            game->level[i].padding[j] = fgetc(fd_level);
+        }
+
+        fclose(fd_level);
     }
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {

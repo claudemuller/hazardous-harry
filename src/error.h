@@ -1,12 +1,6 @@
 #ifndef ERROR_H
 #define ERROR_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-static char err_additional[256] = {0};
-
 enum {
     SUCCESS,
     ERR_ALLOC,
@@ -15,27 +9,10 @@ enum {
     ERR_SDL_CREATE_WIN_RENDER,
 };
 
-static const char *err_messages[] = {
-    "",
-    "Error allocating memory",
-    "Error opening file",
-    "Error initialising SDL",
-    "Error creating SDL window/renderer",
-};
+extern char err_additional[256];
+extern const char *err_messages[];
 
-static inline void err_handle(const int err)
-{
-    if (err != SUCCESS) {
-        // TODO(claude): handle error types e.g. fatal etc.
-        fprintf(stderr, "\033[1;31m%s: %s\033[0m\n", err_messages[err], err_additional);
-        exit(1);
-    }
-}
-
-static inline int err_fatal(const int err, const char *msg)
-{
-    strncpy(err_additional, msg, strlen(msg));
-    return err;
-}
+void err_handle(const int);
+int err_fatal(const int, const char *);
 
 #endif // !ERROR_H
