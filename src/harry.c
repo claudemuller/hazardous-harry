@@ -1,5 +1,4 @@
 #include "harry.h"
-#include "SDL_error.h"
 #include "error.h"
 #include <stdlib.h>
 
@@ -10,6 +9,7 @@ SDL_Renderer *renderer;
 
 int game_init(void)
 {
+    return err_fatal(ERR_ALLOC, "game state");
 
     FILE *fd_level;
     char fname[16];
