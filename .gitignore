@@ -1,4 +1,6 @@
 res
 bin
+src/TILES.c
+src/LEVEL.c
 .cache
 compile_commands.json

@@ -1,6 +1,6 @@
-CC = gcc
-DBG_BIN = lldb
-CFLAGS = #-D_GNU_SOURCE
+CC := gcc
+DBG_BIN := lldb
+#CFLAGS = -D_GNU_SOURCE
 CFLAGS += -std=c11
 CFLAGS += -Wall
 CFLAGS += -Wextra
@@ -10,11 +10,11 @@ CFLAGS += -Wmissing-declarations
 CFLAGS += -I./libs/
 ASANFLAGS=-fsanitize=address -fno-common -fno-omit-frame-pointer
 CFLAGS += $(shell pkg-config --cflags sdl2)
-LDFLAGS = $(shell pkg-config --libs sdl2)
-LIBS =
-SRC_FILES = ./src/*.c
-BIN_DIR = ./bin
-BIN = $(BIN_DIR)/hh
+LDFLAGS := $(shell pkg-config --libs sdl2)
+LIBS :=
+SRC_FILES := $(filter-out ./src/TILES.c ./src/LEVEL.c, $(wildcard ./src/*.c))
+BIN_DIR := ./bin
+BIN := $(BIN_DIR)/hh
 
 build: bin-dir
 	$(CC) $(CFLAGS) $(LIBS) $(SRC_FILES) -o $(BIN) $(LDFLAGS)
@@ -27,6 +27,14 @@ debug: debug-build
 
 debug-build: bin-dir
 	$(CC) $(CFLAGS) -g $(LIBS) $(SRC_FILES) -o $(BIN) $(LDFLAGS)
+
+extract-tiles: bin-dir
+	$(CC) $(CFLAGS) $(LIBS) ./src/TILES.c -o ./bin/tx $(LDFLAGS)
+	./bin/tx
+
+extract-level: bin-dir
+	$(CC) $(CFLAGS) $(LIBS) ./src/LEVEL.c -o ./bin/tx $(LDFLAGS)
+	./bin/tx
 
 run: build
 	@$(BIN) $(ARGS)
