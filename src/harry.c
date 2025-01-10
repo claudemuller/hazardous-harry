@@ -1,4 +1,5 @@
 #include "harry.h"
+#include "SDL_timer.h"
 #include "error.h"
 #include "log.h"
 #include <stddef.h>
@@ -15,10 +16,10 @@ static int init_assets(void);
 
 static void check_collisions(void);
 static void process_input(void);
-static void update(void);
+static void update(float dt);
 static void scroll_screen(void);
 static void check_player_move(void);
-static void move_player(void);
+static void move_player(float dt);
 static void clear_input(void);
 
 static void render(void);
@@ -41,6 +42,7 @@ int game_init(void)
     }
 
     game->is_running = false;
+    game->ticks_last_frame = SDL_GetTicks();
     game->view_x = 0;
     game->view_y = 0;
     game->cur_level = 0;
@@ -112,26 +114,37 @@ int game_run(void)
 {
     log_info("game_run", "running game");
 
-    uint32_t timer_start = 0, timer_end = 0, delay = 0;
+    // uint32_t timer_start = 0, timer_end = 0, delay = 0;
 
     while (game->is_running) {
-        timer_start = SDL_GetTicks();
+        // timer_start = SDL_GetTicks();
 
         process_input();
+
+        uint32_t current_ticks = SDL_GetTicks();
+        int time_to_wait = FRAME_TIME_LEN - (current_ticks - game->ticks_last_frame);
+
+        if (time_to_wait > 0 && time_to_wait <= FRAME_TIME_LEN) {
+            SDL_Delay(time_to_wait);
+        }
+
+        float dt = (current_ticks - game->ticks_last_frame) / 1000.0f;
+        game->ticks_last_frame = current_ticks;
+
         check_collisions();
-        update();
+        update(dt);
         render();
 
-        timer_end = SDL_GetTicks();
-
-        delay = FPS - (timer_end - timer_start);
-        delay = delay > 33 ? 0 : delay;
-
+        // timer_end = SDL_GetTicks();
+        //
+        // delay = FPS - (timer_end - timer_start);
+        // delay = delay > 33 ? 0 : delay;
+        //
         // char fps_msg[256];
         // sprintf(fps_msg, "timer_start: %d - timer_end: %d", timer_start, timer_end);
         // log_info("game_run", fps_msg);
-
-        SDL_Delay(delay);
+        //
+        // SDL_Delay(delay);
     }
 
     return SUCCESS;
@@ -193,10 +206,9 @@ static void check_collisions(void)
 
 static void process_input(void)
 {
-    SDL_Event event;
-    SDL_PollEvent(&event);
-
+    SDL_PumpEvents();
     const uint8_t *keystate = SDL_GetKeyboardState(NULL);
+
     if (keystate[SDL_SCANCODE_RIGHT]) {
         game->player.try_right = 1;
     }
@@ -207,39 +219,42 @@ static void process_input(void)
         game->player.try_jump = 1;
     }
 
-    switch (event.type) {
-    case SDL_QUIT: {
-        game->is_running = false;
-    } break;
-
-    case SDL_KEYDOWN: {
-        if (event.key.keysym.sym == SDLK_ESCAPE) {
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+        case SDL_QUIT: {
             game->is_running = false;
-        }
+        } break;
 
-        //     if (event.key.keysym.sym == SDLK_RIGHT) {
-        //         game->scroll_x = 15;
-        //     }
-        //
-        //     if (event.key.keysym.sym == SDLK_LEFT) {
-        //         game->scroll_x = -15;
-        //     }
-        //
-        //     if (event.key.keysym.sym == SDLK_DOWN) {
-        //         game->cur_level++;
-        //     }
-        //
-        //     if (event.key.keysym.sym == SDLK_UP) {
-        //         game->cur_level--;
-        //     }
-    } break;
+        case SDL_KEYDOWN: {
+            if (event.key.keysym.sym == SDLK_ESCAPE) {
+                game->is_running = false;
+            }
+
+            //     if (event.key.keysym.sym == SDLK_RIGHT) {
+            //         game->scroll_x = 15;
+            //     }
+            //
+            //     if (event.key.keysym.sym == SDLK_LEFT) {
+            //         game->scroll_x = -15;
+            //     }
+            //
+            //     if (event.key.keysym.sym == SDLK_DOWN) {
+            //         game->cur_level++;
+            //     }
+            //
+            //     if (event.key.keysym.sym == SDLK_UP) {
+            //         game->cur_level--;
+            //     }
+        } break;
+        }
     }
 }
 
-static void update(void)
+static void update(float dt)
 {
     check_player_move();
-    move_player();
+    move_player(dt);
     scroll_screen();
     clear_input();
 }
@@ -289,14 +304,18 @@ static void check_player_move(void)
     }
 }
 
-static void move_player(void)
+static void move_player(float dt)
 {
+    const float MUL = 45.0f;
+
     if (game->player.right) {
-        game->player.px += PLAYER_MOVE;
+        float px = PLAYER_MOVE * MUL * dt;
+        game->player.px += (uint16_t)px;
         game->player.right = 0;
     }
     if (game->player.left) {
-        game->player.px -= PLAYER_MOVE;
+        float px = PLAYER_MOVE * MUL * dt;
+        game->player.px -= px;
         game->player.left = 0;
     }
     if (game->player.jump) {
@@ -304,11 +323,12 @@ static void move_player(void)
             game->player.jump_timer = 20;
         }
 
+        // TODO(claude): add delta time to jump
         if (game->player.collision_point[0] && game->player.collision_point[1]) {
             if (game->player.jump_timer > 5) {
-                game->player.py -= 2;
+                game->player.py -= PLAYER_MOVE;
             } else {
-                game->player.py -= 1;
+                game->player.py -= PLAYER_MOVE / 2;
             }
 
             game->player.jump_timer--;
@@ -324,7 +344,7 @@ static void move_player(void)
     // Add gravity
     if (!game->player.jump && !game->player.on_ground) {
         if (is_clear(game->player.px + 4, game->player.py + 17)) {
-            game->player.py += 2;
+            game->player.py += PLAYER_MOVE;
         } else {
             uint8_t not_aligned = game->player.py % TILE_SIZE;
             if (not_aligned) {

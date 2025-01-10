@@ -18,6 +18,7 @@
 #define PLAYER_MOVE 2
 
 #define FPS 30
+#define FRAME_TIME_LEN (1000.0 / FPS)
 #define DISPLAY_SCALE 3
 
 typedef struct {
@@ -46,6 +47,7 @@ typedef struct {
 
 typedef struct {
     bool is_running;
+    uint32_t ticks_last_frame;
     uint8_t cur_level;
 
     uint8_t view_x;
