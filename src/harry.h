@@ -5,6 +5,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define ASSET_FNAME_SIZE 16
+
+#define TILE_SIZE 16
+#define NUM_TILES 158
 #define DISPLAY_SCALE 3
 
 struct level_t {
@@ -23,12 +27,12 @@ struct game_state_t {
 };
 
 struct game_assets_t {
-    SDL_Texture *gfx_tiles[158];
+    SDL_Texture *gfx_tiles[NUM_TILES];
 };
 
 int game_init(void);
 int game_run(void);
-void game_init_assets(void);
+int game_init_assets(void);
 void game_process_input(void);
 void game_update(void);
 void game_render(void);

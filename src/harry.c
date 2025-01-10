@@ -1,4 +1,6 @@
 #include "harry.h"
+#include "SDL_render.h"
+#include "SDL_surface.h"
 #include "error.h"
 #include <stddef.h>
 #include <stdlib.h>
@@ -10,10 +12,8 @@ SDL_Renderer *renderer;
 
 int game_init(void)
 {
-    return err_fatal(ERR_ALLOC, "game state");
-
     FILE *fd_level;
-    char fname[16];
+    char fname[ASSET_FNAME_SIZE];
     char file_num[4];
 
     game = malloc(sizeof(struct game_state_t));
@@ -65,7 +65,10 @@ int game_init(void)
     if (!assets) {
         return err_fatal(ERR_ALLOC, "game assets");
     }
-    game_init_assets();
+    int err = game_init_assets();
+    if (err != SUCCESS) {
+        return err_fatal(err, NULL);
+    }
 
     game->is_running = true;
 
@@ -86,7 +89,31 @@ int game_run(void)
     return SUCCESS;
 }
 
-void game_init_assets(void) {}
+int game_init_assets(void)
+{
+    char fname[ASSET_FNAME_SIZE];
+    char file_num[4];
+
+    for (size_t i = 0; i < NUM_TILES; i++) {
+        /* Make new file */
+        fname[0] = '\0';
+        strcat(fname, "res/tile");
+        sprintf(&file_num[0], "%u", (int)i);
+        strcat(fname, file_num);
+        strcat(fname, ".bmp");
+
+        SDL_Surface *surface = SDL_LoadBMP(fname);
+        if (!surface) {
+            return err_fatal(ERR_SDL_LOADING_BMP, fname);
+        }
+
+        assets->gfx_tiles[i] = SDL_CreateTextureFromSurface(renderer, surface);
+
+        SDL_FreeSurface(surface);
+    }
+
+    return SUCCESS;
+}
 
 void game_process_input(void)
 {
@@ -108,7 +135,27 @@ void game_process_input(void)
 
 void game_update(void) {}
 
-void game_render(void) {}
+void game_render(void)
+{
+    uint8_t tile_index;
+    SDL_Rect dest = {
+        .w = TILE_SIZE,
+        .h = TILE_SIZE,
+    };
+
+    for (int i = 0; i < 10; i++) {
+        dest.y = i * TILE_SIZE;
+
+        for (int j = 0; j < 20; j++) {
+            dest.x = j * TILE_SIZE;
+
+            tile_index = game->level[game->cur_level].tiles[i * 100 + game->view_x + j];
+            SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
+        }
+    }
+
+    SDL_RenderPresent(renderer);
+}
 
 int game_destroy(void)
 {

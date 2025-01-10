@@ -7,6 +7,7 @@ enum {
     ERR_OPENING_FILE,
     ERR_SDL_INIT,
     ERR_SDL_CREATE_WIN_RENDER,
+    ERR_SDL_LOADING_BMP,
 };
 
 extern char err_additional[256];

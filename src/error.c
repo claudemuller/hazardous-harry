@@ -11,6 +11,7 @@ const char *err_messages[] = {
     "Error opening file",
     "Error initialising SDL",
     "Error creating SDL window/renderer",
+    "Error loading BMP",
 };
 
 void err_handle(const int err)
@@ -25,6 +26,9 @@ void err_handle(const int err)
 // TODO(claude): make this variadic after int err
 int err_fatal(const int err, const char *msg)
 {
-    strncpy(err_additional, msg, strlen(msg));
+    if (msg) {
+        strncpy(err_additional, msg, strlen(msg));
+    }
+
     return err;
 }
