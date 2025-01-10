@@ -16,11 +16,11 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "TILES",
-			"preLaunchTask": "compile-tiles",
+			"name": "Debug [VSCode]",
+			"preLaunchTask": "compile",
 			"postDebugTask": "clean",
 			"expressions": "native",
-			"program": "${workspaceFolder}/bin/tx",
+			"program": "${workspaceFolder}/bin/hh",
 			"cwd": "${workspaceFolder}",
 			"runInTerminal": false,
 			"stopAtEntry": false

@@ -18,7 +18,7 @@ void err_handle(const int err)
 {
     if (err != SUCCESS) {
         // TODO(claude): handle error types e.g. fatal etc.
-        fprintf(stderr, "\033[1;31m%s: %s\033[0m\n", err_messages[err], err_additional);
+        fprintf(stderr, "\033[1;31m🚨 %s: %s\033[0m\n", err_messages[err], err_additional);
         exit(1);
     }
 }

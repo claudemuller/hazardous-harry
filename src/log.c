@@ -14,6 +14,6 @@ void log_info(const char *tag, const char *msg)
         struct tm *local = localtime(&now);
 
         strftime(buffer, sizeof(buffer), "%Y:%m:%d:%H.%M.%S", local);
-        fprintf(stdout, "\033[37m%s: [%s] %s\033[0m\n", buffer, tag, msg);
+        fprintf(stdout, "\033[37mℹ️ %s: [%s] %s\033[0m\n", buffer, tag, msg);
     }
 }

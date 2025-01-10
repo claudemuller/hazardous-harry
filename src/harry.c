@@ -29,7 +29,7 @@ static uint8_t is_clear(uint16_t px, uint16_t py);
 
 int game_init(void)
 {
-    log_info("game_init", "entered");
+    log_info("game_init", "initialising game");
 
     FILE *fd_level;
     char fname[ASSET_FNAME_SIZE];
@@ -53,7 +53,7 @@ int game_init(void)
     game->player.jump_timer = 0;
     game->player.on_ground = 1;
 
-    log_info("game_init", "load levels");
+    log_info("game_init", "loading levels");
 
     for (int i = 0; i < 10; i++) {
         fname[0] = '\0';
@@ -80,7 +80,7 @@ int game_init(void)
         fclose(fd_level);
     }
 
-    log_info("game_init", "init sdl");
+    log_info("game_init", "initialising SDL");
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         return err_fatal(ERR_SDL_INIT, SDL_GetError());
@@ -92,7 +92,7 @@ int game_init(void)
 
     SDL_RenderSetScale(renderer, DISPLAY_SCALE, DISPLAY_SCALE);
 
-    log_info("game_init", "malloc assets");
+    log_info("game_init", "malloc'ing assets");
 
     assets = malloc(sizeof(game_assets_t));
     if (!assets) {
@@ -110,15 +110,15 @@ int game_init(void)
 
 int game_run(void)
 {
-    log_info("game_run", "entered");
+    log_info("game_run", "running game");
 
-    uint32_t timer_start, timer_end, delay;
+    uint32_t timer_start = 0, timer_end = 0, delay = 0;
 
     while (game->is_running) {
         timer_start = SDL_GetTicks();
 
-        check_collisions();
         process_input();
+        check_collisions();
         update();
         render();
 
@@ -139,6 +139,8 @@ int game_run(void)
 
 int game_destroy(void)
 {
+    log_info("game_destroy", "cleaning up");
+
     free(assets);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
@@ -194,17 +196,17 @@ static void process_input(void)
     SDL_Event event;
     SDL_PollEvent(&event);
 
-    // const uint8_t *keystate = SDL_GetKeyboardState(NULL);
-    // if (keystate[SDL_SCANCODE_RIGHT]) {
-    //     game->player.try_right = 1;
-    // }
-    // if (keystate[SDL_SCANCODE_LEFT]) {
-    //     game->player.try_left = 1;
-    // }
-    // if (keystate[SDL_SCANCODE_UP]) {
-    //     game->player.try_jump = 1;
-    // }
-    //
+    const uint8_t *keystate = SDL_GetKeyboardState(NULL);
+    if (keystate[SDL_SCANCODE_RIGHT]) {
+        game->player.try_right = 1;
+    }
+    if (keystate[SDL_SCANCODE_LEFT]) {
+        game->player.try_left = 1;
+    }
+    if (keystate[SDL_SCANCODE_SPACE]) {
+        game->player.try_jump = 1;
+    }
+
     switch (event.type) {
     case SDL_QUIT: {
         game->is_running = false;
@@ -316,6 +318,19 @@ static void move_player(void)
 
         if (game->player.jump_timer == 0) {
             game->player.jump = 0;
+        }
+    }
+
+    // Add gravity
+    if (!game->player.jump && !game->player.on_ground) {
+        if (is_clear(game->player.px + 4, game->player.py + 17)) {
+            game->player.py += 2;
+        } else {
+            uint8_t not_aligned = game->player.py % TILE_SIZE;
+            if (not_aligned) {
+                game->player.py =
+                    not_aligned < 8 ? game->player.py - not_aligned : game->player.py + TILE_SIZE - not_aligned;
+            }
         }
     }
 }
