@@ -441,6 +441,36 @@ static void start_level(void)
         game->player.x = 1;
         game->player.y = 5;
     } break;
+
+    case 4: {
+        game->player.x = 2;
+        game->player.y = 8;
+    } break;
+
+    case 5: {
+        game->player.x = 2;
+        game->player.y = 8;
+    } break;
+
+    case 6: {
+        game->player.x = 1;
+        game->player.y = 2;
+    } break;
+
+    case 7: {
+        game->player.x = 2;
+        game->player.y = 8;
+    } break;
+
+    case 8: {
+        game->player.x = 6;
+        game->player.y = 1;
+    } break;
+
+    case 9: {
+        game->player.x = 2;
+        game->player.y = 8;
+    } break;
     }
 
     game->player.px = game->player.x * TILE_SIZE;
@@ -449,6 +479,7 @@ static void start_level(void)
     game->player.gun = 0;
     game->player.fire = 0;
     game->player.using_jetpack = 0;
+    game->player.jetpack = 0;
     game->player.check_door = 0;
     game->player.jump_timer = 0;
     game->view_x = 0;
@@ -557,7 +588,8 @@ static void move_player(float dt)
 
     if (game->player.jump) {
         if (!game->player.jump_timer) {
-            game->player.jump_timer = 55;
+            game->player.jump_timer = 45;
+            game->player.last_dir = 0;
         }
 
         // TODO(claude): add delta time to jump
@@ -687,7 +719,6 @@ static void render_player(void)
         .h = PLAYER_H,
     };
 
-    // TODO(claude): fix the messed up jetpack :/
     if (game->player.using_jetpack) {
         tile_index = game->player.last_dir >= 0 ? TILE_JETPACK_LEFT : TILE_JETPACK_RIGHT;
     } else {
@@ -770,12 +801,10 @@ static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player)
             game->player.check_door = 1;
         } break;
 
-        case TILE_JETPACK: {
-            game->player.using_jetpack = 1;
-        };
         case TILE_GUN: {
             game->player.gun = 1;
         };
+        case TILE_JETPACK:
         case TILE_TROPHY:
         case 47:
         case 48:
