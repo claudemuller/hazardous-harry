@@ -16,6 +16,9 @@
 #define PLAYER_START_X 2
 #define PLAYER_START_Y 8
 #define PLAYER_MOVE 2
+#define BULLET_SPEED 4
+#define BULLET_W 12
+#define BULLET_H 3
 
 #define FPS 30
 #define FRAME_TIME_LEN (1000.0 / FPS)
@@ -27,6 +30,8 @@
 #define TILE_JETPACK 4
 #define TILE_TROPHY 10
 #define TILE_GUN 20
+#define TILE_BULLET_LEFT 127
+#define TILE_BULLET_RIGHT 128
 
 #define SCORE_TROPHY 1000
 
@@ -45,30 +50,40 @@ typedef struct {
     uint8_t score;
     uint8_t lives;
 
+    uint8_t collision_point[9];
+
     uint8_t try_right;
     uint8_t try_left;
+    uint8_t try_up;
+    uint8_t try_down;
     uint8_t try_jump;
     uint8_t try_fire;
     uint8_t try_jetpack;
-    uint8_t try_up;
-    uint8_t try_down;
 
     uint8_t right;
     uint8_t left;
+    uint8_t up;
+    uint8_t down;
     uint8_t jump;
     uint8_t jump_timer;
     uint8_t fire;
-    uint8_t jetpack;
-    uint8_t up;
+    uint8_t use_jetpack;
 
-    uint8_t collision_point[9];
+    int8_t last_dir;
     uint8_t on_ground;
     uint8_t check_pickup_x;
     uint8_t check_pickup_y;
     uint8_t check_door;
     uint8_t trophy;
     uint8_t gun;
-    uint8_t use_jetpack;
+    uint8_t jetpack;
+
+    uint16_t pbullet_px;
+    uint16_t pbullet_py;
+    int8_t pbullet_dir;
+    uint16_t ebullet_px;
+    uint16_t ebullet_py;
+    int8_t ebullet_dir;
 } player_t;
 
 typedef struct {

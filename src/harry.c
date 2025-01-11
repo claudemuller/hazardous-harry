@@ -22,7 +22,8 @@ static void update(float dt);
 static void scroll_screen(void);
 static void update_level(void);
 static void start_level(void);
-static void check_player_move(void);
+static void update_pbullet(void);
+static void verify_input(void);
 static void move_player(float dt);
 static void pickup_item(uint8_t, uint8_t);
 static void clear_input(void);
@@ -30,9 +31,10 @@ static void clear_input(void);
 static void render(void);
 static void render_world(void);
 static void render_player(void);
+static void render_bullet(void);
 static void render_debug_ui(void);
 
-static uint8_t is_clear(uint16_t px, uint16_t py);
+static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player);
 
 int game_init(void)
 {
@@ -49,7 +51,7 @@ int game_init(void)
 
     game->is_running = false;
     game->ticks_last_frame = SDL_GetTicks();
-    game->cur_level = 0;
+    game->cur_level = 2;
     game->scroll_x = 0;
 
     game->player.on_ground = 1;
@@ -266,14 +268,14 @@ static int init_assets(void)
 static void check_collisions(void)
 {
     // TODO(claude): change to is_colliding
-    game->player.collision_point[0] = is_clear(game->player.px + 4, game->player.py - 1);
-    game->player.collision_point[1] = is_clear(game->player.px + 10, game->player.py - 1);
-    game->player.collision_point[2] = is_clear(game->player.px + 11, game->player.py + 4);
-    game->player.collision_point[3] = is_clear(game->player.px + 11, game->player.py + 12);
-    game->player.collision_point[4] = is_clear(game->player.px + 10, game->player.py + 16);
-    game->player.collision_point[5] = is_clear(game->player.px + 4, game->player.py + 16);
-    game->player.collision_point[6] = is_clear(game->player.px + 3, game->player.py + 12);
-    game->player.collision_point[7] = is_clear(game->player.px + 3, game->player.py + 4);
+    game->player.collision_point[0] = is_clear(game->player.px + 4, game->player.py - 1, 1);
+    game->player.collision_point[1] = is_clear(game->player.px + 10, game->player.py - 1, 1);
+    game->player.collision_point[2] = is_clear(game->player.px + 11, game->player.py + 4, 1);
+    game->player.collision_point[3] = is_clear(game->player.px + 11, game->player.py + 12, 1);
+    game->player.collision_point[4] = is_clear(game->player.px + 10, game->player.py + 16, 1);
+    game->player.collision_point[5] = is_clear(game->player.px + 4, game->player.py + 16, 1);
+    game->player.collision_point[6] = is_clear(game->player.px + 3, game->player.py + 12, 1);
+    game->player.collision_point[7] = is_clear(game->player.px + 3, game->player.py + 4, 1);
     game->player.on_ground = !game->player.collision_point[4] && !game->player.collision_point[5];
 }
 
@@ -290,6 +292,15 @@ static void process_input(void)
     }
     if (keystate[SDL_SCANCODE_SPACE]) {
         game->player.try_jump = 1;
+    }
+    if (keystate[SDL_SCANCODE_DOWN]) {
+        game->player.try_down = 1;
+    }
+    if (keystate[SDL_SCANCODE_LCTRL]) {
+        game->player.try_fire = 1;
+    }
+    if (keystate[SDL_SCANCODE_LALT]) {
+        game->player.try_jetpack = 1;
     }
 
     SDL_Event event;
@@ -326,7 +337,8 @@ static void process_input(void)
 
 static void update(float dt)
 {
-    check_player_move();
+    update_pbullet();
+    verify_input();
     move_player(dt);
     scroll_screen();
     update_level();
@@ -340,6 +352,7 @@ static void render(void)
 
     render_world();
     render_player();
+    render_bullet();
     render_debug_ui();
 
     SDL_RenderPresent(renderer);
@@ -421,24 +434,75 @@ static void start_level(void)
     game->player.py = game->player.y * TILE_SIZE;
     game->player.trophy = 0;
     game->player.gun = 0;
+    game->player.fire = 0;
     game->player.jetpack = 0;
     game->player.check_door = 0;
     game->player.jump_timer = 0;
     game->view_x = 0;
     game->view_y = 0;
+    game->player.last_dir = 0;
+    game->player.pbullet_px = 0;
+    game->player.pbullet_py = 0;
+    game->player.pbullet_dir = 0;
+    game->player.ebullet_px = 0;
+    game->player.ebullet_py = 0;
+    game->player.ebullet_dir = 0;
 }
 
-static void check_player_move(void)
+static void update_pbullet(void)
+{
+    uint8_t grid_x;
+
+    if (!game->player.pbullet_px || !game->player.pbullet_py) {
+        return;
+    }
+
+    game->player.pbullet_px += game->player.pbullet_dir * BULLET_SPEED;
+
+    // If bullet hits a collidable tile, remove it
+    if (!is_clear(game->player.pbullet_px, game->player.pbullet_py, 0)) {
+        game->player.pbullet_px = game->player.pbullet_py = 0;
+    }
+
+    grid_x = game->player.pbullet_px / TILE_SIZE;
+
+    // If bullet reaches the end of the screen, remove it
+    if (grid_x - game->view_x < 1 || grid_x - game->view_x > 20) {
+        game->player.pbullet_px = game->player.pbullet_py = 0;
+    }
+}
+
+static void verify_input(void)
 {
     if (game->player.try_right && game->player.collision_point[2] && game->player.collision_point[3]) {
         game->player.right = 1;
     }
+
     if (game->player.try_left && game->player.collision_point[6] && game->player.collision_point[7]) {
         game->player.left = 1;
     }
+
     if (game->player.try_jump && game->player.on_ground && !game->player.jump && game->player.collision_point[0] &&
         game->player.collision_point[1]) {
         game->player.jump = 1;
+    }
+
+    if (game->player.try_fire && game->player.gun && !game->player.pbullet_px && !game->player.pbullet_py) {
+        game->player.fire = 1;
+    }
+
+    if (game->player.try_jetpack && game->player.jetpack) {
+        game->player.use_jetpack = !game->player.use_jetpack;
+    }
+
+    if (game->player.try_down && game->player.use_jetpack && game->player.collision_point[4] &&
+        game->player.collision_point[5]) {
+        game->player.down = 1;
+    }
+
+    if (game->player.try_up && game->player.use_jetpack && game->player.collision_point[4] &&
+        game->player.collision_point[5]) {
+        game->player.up = 1;
     }
 }
 
@@ -453,11 +517,23 @@ static void move_player(float dt)
         // float px = PLAYER_MOVE; // * MUL * dt;
         game->player.px += PLAYER_MOVE;
         game->player.right = 0;
+        game->player.last_dir = 1;
     }
     if (game->player.left) {
         // float px = PLAYER_MOVE; // * MUL * dt;
         game->player.px -= PLAYER_MOVE;
         game->player.left = 0;
+        game->player.last_dir = -1;
+    }
+
+    if (game->player.down) {
+        game->player.py += PLAYER_MOVE;
+        game->player.down = 0;
+    }
+
+    if (game->player.up) {
+        game->player.py -= PLAYER_MOVE;
+        game->player.up = 0;
     }
 
     if (game->player.jump) {
@@ -484,7 +560,7 @@ static void move_player(float dt)
 
     // Add gravity
     if (!game->player.jump && !game->player.on_ground) {
-        if (is_clear(game->player.px + 4, game->player.py + 17)) {
+        if (is_clear(game->player.px + 4, game->player.py + 17, 1)) {
             game->player.py += PLAYER_MOVE;
         } else {
             uint8_t not_aligned = game->player.py % TILE_SIZE;
@@ -493,6 +569,26 @@ static void move_player(float dt)
                     not_aligned < 8 ? game->player.py - not_aligned : game->player.py + TILE_SIZE - not_aligned;
             }
         }
+    }
+
+    // Firing the gun
+    if (game->player.fire) {
+        game->player.pbullet_dir = game->player.last_dir;
+
+        if (!game->player.pbullet_dir) {
+            game->player.pbullet_dir = 1;
+        }
+
+        if (game->player.pbullet_dir == 1) {
+            game->player.pbullet_px = game->player.px + 18;
+        }
+
+        if (game->player.pbullet_dir == -1) {
+            game->player.pbullet_px = game->player.px - 8;
+        }
+
+        game->player.pbullet_py = game->player.py + 8;
+        game->player.fire = 0;
     }
 }
 
@@ -568,11 +664,25 @@ static void render_player(void)
     uint8_t tile_index = PLAYER_TILE;
     SDL_Rect dest = {
         .x = game->player.px - game->view_x * TILE_SIZE,
-        .y = game->player.py - game->view_y * TILE_SIZE,
+        .y = game->player.py,
         .w = PLAYER_W,
         .h = PLAYER_H,
     };
     SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
+}
+
+static void render_bullet(void)
+{
+    if (game->player.pbullet_px && game->player.pbullet_py) {
+        SDL_Rect dest = {
+            .x = game->player.pbullet_px - game->view_x * TILE_SIZE,
+            .y = game->player.pbullet_py,
+            .w = BULLET_W,
+            .h = BULLET_H,
+        };
+        uint8_t tile_index = game->player.pbullet_dir > 0 ? TILE_BULLET_LEFT : TILE_BULLET_RIGHT;
+        SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
+    }
 }
 
 static void render_debug_ui(void)
@@ -597,7 +707,7 @@ static void render_debug_ui(void)
     SDL_RenderCopy(renderer, textTexture, NULL, &renderQuad);
 }
 
-static uint8_t is_clear(uint16_t px, uint16_t py)
+static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player)
 {
     uint8_t grid_x = px / TILE_SIZE;
     uint8_t grid_y = py / TILE_SIZE;
@@ -626,32 +736,33 @@ static uint8_t is_clear(uint16_t px, uint16_t py)
         break;
     }
 
-    switch (type) {
-    case TILE_DOOR: {
-        game->player.check_door = 1;
-    } break;
+    if (is_player) {
+        switch (type) {
+        case TILE_DOOR: {
+            game->player.check_door = 1;
+        } break;
 
-    case TILE_JETPACK: {
-        game->player.use_jetpack = 1;
-    } break;
+        case TILE_JETPACK: {
+            game->player.use_jetpack = 1;
+        } break;
 
-    case TILE_GUN: {
-        game->player.gun = 1;
-    } break;
+        case TILE_GUN: {
+            game->player.gun = 1;
+        };
+        case TILE_TROPHY:
+        case 47:
+        case 48:
+        case 49:
+        case 50:
+        case 51:
+        case 52: {
+            game->player.check_pickup_x = grid_x;
+            game->player.check_pickup_y = grid_y;
+        } break;
 
-    case TILE_TROPHY:
-    case 47:
-    case 48:
-    case 49:
-    case 50:
-    case 51:
-    case 52: {
-        game->player.check_pickup_x = grid_x;
-        game->player.check_pickup_y = grid_y;
-    } break;
-
-    default:
-        break;
+        default:
+            break;
+        }
     }
 
     return 1;
