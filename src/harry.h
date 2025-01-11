@@ -74,6 +74,7 @@ typedef struct {
 typedef struct {
     bool is_running;
     uint32_t ticks_last_frame;
+    uint32_t delay;
     uint8_t cur_level;
 
     uint8_t view_x;

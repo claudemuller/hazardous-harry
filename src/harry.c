@@ -1,10 +1,7 @@
 #include "harry.h"
-#include "SDL_pixels.h"
-#include "SDL_render.h"
-#include "SDL_surface.h"
-#include "SDL_timer.h"
 #include "error.h"
 #include "log.h"
+#include <SDL2/SDL_ttf.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -14,6 +11,7 @@ static game_state_t *game;
 static game_assets_t *assets;
 SDL_Window *window;
 SDL_Renderer *renderer;
+TTF_Font *font;
 
 static int init_assets(void);
 
@@ -31,6 +29,7 @@ static void clear_input(void);
 static void render(void);
 static void render_world(void);
 static void render_player(void);
+static void render_ui(void);
 
 static uint8_t is_clear(uint16_t px, uint16_t py);
 
@@ -100,11 +99,29 @@ int game_init(void)
         return err_fatal(ERR_SDL_INIT, SDL_GetError());
     }
 
+    // TODO(claude): clean up :(
+    if (TTF_Init() == -1) {
+        SDL_Log("SDL_ttf could not initialize! TTF_Error: %s", TTF_GetError());
+        SDL_Quit();
+        return 1;
+    }
+
     if (SDL_CreateWindowAndRenderer(320 * DISPLAY_SCALE, 200 * DISPLAY_SCALE, 0, &window, &renderer) != 0) {
         return err_fatal(ERR_SDL_CREATE_WIN_RENDER, SDL_GetError());
     }
 
     SDL_RenderSetScale(renderer, DISPLAY_SCALE, DISPLAY_SCALE);
+
+    // TODO(claude): clean up :(
+    font = TTF_OpenFont("/home/lukefilewalker/repos/tyler.c/assets/fonts/DroidSans.ttf", 12);
+    if (!font) {
+        SDL_Log("Font could not be loaded! TTF_Error: %s", TTF_GetError());
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        TTF_Quit();
+        SDL_Quit();
+        return 1;
+    }
 
     log_info("game_init", "malloc'ing assets");
 
@@ -126,40 +143,41 @@ int game_run(void)
 {
     log_info("game_run", "running game");
 
-    // uint32_t timer_start = 0, timer_end = 0, delay = 0;
+    uint32_t timer_start = 0, timer_end = 0, delay = 0;
 
     start_level();
 
     while (game->is_running) {
-        // timer_start = SDL_GetTicks();
+        timer_start = SDL_GetTicks();
 
         process_input();
 
-        uint32_t current_ticks = SDL_GetTicks();
-        int time_to_wait = FRAME_TIME_LEN - (current_ticks - game->ticks_last_frame);
-
-        if (time_to_wait > 0 && time_to_wait <= FRAME_TIME_LEN) {
-            SDL_Delay(time_to_wait);
-        }
-
-        float dt = (current_ticks - game->ticks_last_frame) / 1000.0f;
-        game->ticks_last_frame = current_ticks;
+        // uint32_t current_ticks = SDL_GetTicks();
+        // int time_to_wait = FRAME_TIME_LEN - (current_ticks - game->ticks_last_frame);
+        //
+        // if (time_to_wait > 0 && time_to_wait <= FRAME_TIME_LEN) {
+        //     SDL_Delay(time_to_wait);
+        // }
+        //
+        // float dt = (current_ticks - game->ticks_last_frame) / 1000.0f;
+        // game->ticks_last_frame = current_ticks;
 
         check_collisions();
         pickup_item(game->player.check_pickup_x, game->player.check_pickup_y);
-        update(dt);
+        update(1);
         render();
 
-        // timer_end = SDL_GetTicks();
-        //
-        // delay = FPS - (timer_end - timer_start);
-        // delay = delay > 33 ? 0 : delay;
-        //
+        timer_end = SDL_GetTicks();
+
+        delay = FPS - (timer_end - timer_start);
+        delay = delay > 33 ? 0 : delay;
+        game->delay = delay;
+
         // char fps_msg[256];
         // sprintf(fps_msg, "timer_start: %d - timer_end: %d", timer_start, timer_end);
         // log_info("game_run", fps_msg);
-        //
-        // SDL_Delay(delay);
+
+        SDL_Delay(delay);
     }
 
     return SUCCESS;
@@ -329,12 +347,20 @@ static void render(void)
 
     render_world();
     render_player();
+    render_ui();
 
     SDL_RenderPresent(renderer);
 }
 
 static void scroll_screen(void)
 {
+    if (game->player.x - game->view_x >= 18) {
+        game->scroll_x = 15;
+    }
+    if (game->player.x - game->view_x < 2) {
+        game->scroll_x = -15;
+    }
+
     if (game->scroll_x > 0) {
         if (game->view_x == 80) {
             game->scroll_x = 0;
@@ -421,35 +447,37 @@ static void check_player_move(void)
 
 static void move_player(float dt)
 {
-    const float MUL = 45.0f;
+    // const float MUL = 45.0f;
+
+    game->player.px = game->player.x * TILE_SIZE;
+    game->player.py = game->player.y * TILE_SIZE;
 
     if (game->player.right) {
-        float px = PLAYER_MOVE * MUL * dt;
-        game->player.px += (uint16_t)px;
+        // float px = PLAYER_MOVE; // * MUL * dt;
+        game->player.px += PLAYER_MOVE;
         game->player.right = 0;
     }
     if (game->player.left) {
-        float px = PLAYER_MOVE * MUL * dt;
-        game->player.px -= px;
+        // float px = PLAYER_MOVE; // * MUL * dt;
+        game->player.px -= PLAYER_MOVE;
         game->player.left = 0;
     }
     if (game->player.jump) {
         if (!game->player.jump_timer) {
-            game->player.jump_timer = 20;
+            game->player.jump_timer = 25;
         }
 
         // TODO(claude): add delta time to jump
         if (game->player.collision_point[0] && game->player.collision_point[1]) {
-            if (game->player.jump_timer > 5) {
+            if (game->player.jump_timer > 10) {
                 game->player.py -= PLAYER_MOVE;
-            } else {
+            }
+            if (game->player.jump_timer >= 5 && game->player.jump_timer <= 10) {
                 game->player.py -= PLAYER_MOVE / 2;
             }
-
-            game->player.jump_timer--;
-        } else {
-            game->player.jump_timer = 0;
         }
+
+        game->player.jump_timer--;
 
         if (game->player.jump_timer == 0) {
             game->player.jump = 0;
@@ -539,13 +567,38 @@ static void render_world(void)
 
 static void render_player(void)
 {
+    uint8_t tile_index = PLAYER_TILE;
     SDL_Rect dest = {
-        .x = game->player.px,
-        .y = game->player.py,
+        .x = game->player.px - game->view_x * TILE_SIZE,
+        .y = game->player.py - game->view_y * TILE_SIZE,
         .w = PLAYER_W,
         .h = PLAYER_H,
     };
-    SDL_RenderCopy(renderer, assets->gfx_tiles[PLAYER_TILE], NULL, &dest);
+    SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
+}
+
+static void render_ui(void)
+{
+    SDL_Color textColor = {255, 255, 255, 255}; // White color
+    char fps[10];
+    sprintf(fps, "%d", game->delay);
+    SDL_Surface *surface = TTF_RenderText_Solid(font, fps, textColor);
+    if (!surface) {
+        SDL_Log("Unable to create text surface! TTF_Error: %s", TTF_GetError());
+        return;
+    }
+
+    // Create texture from surface
+    SDL_Texture *textTexture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (!textTexture) {
+        SDL_Log("Unable to create texture from surface! SDL_Error: %s", SDL_GetError());
+        return;
+    }
+
+    SDL_FreeSurface(surface);
+
+    SDL_Rect renderQuad = {5, 5, surface->w, surface->h};
+    SDL_RenderCopy(renderer, textTexture, NULL, &renderQuad);
 }
 
 static uint8_t is_clear(uint16_t px, uint16_t py)

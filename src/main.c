@@ -1,3 +1,5 @@
+#define SDL_MAIN_HANDLED
+
 #include "error.h"
 #include "harry.h"
 #include "log.h"
