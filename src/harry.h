@@ -23,6 +23,13 @@
 
 #define COLOUR_WHITE 0xff
 
+#define TILE_DOOR 2
+#define TILE_JETPACK 4
+#define TILE_TROPHY 10
+#define TILE_GUN 20
+
+#define SCORE_TROPHY 1000
+
 typedef struct {
     uint8_t path[256];
     uint8_t tiles[1000];
@@ -35,18 +42,33 @@ typedef struct {
     uint16_t px;
     uint16_t py;
 
+    uint8_t score;
+    uint8_t lives;
+
     uint8_t try_right;
     uint8_t try_left;
     uint8_t try_jump;
+    uint8_t try_fire;
+    uint8_t try_jetpack;
+    uint8_t try_up;
+    uint8_t try_down;
+
     uint8_t right;
     uint8_t left;
     uint8_t jump;
     uint8_t jump_timer;
+    uint8_t fire;
+    uint8_t jetpack;
+    uint8_t up;
 
     uint8_t collision_point[9];
     uint8_t on_ground;
     uint8_t check_pickup_x;
     uint8_t check_pickup_y;
+    uint8_t check_door;
+    uint8_t trophy;
+    uint8_t gun;
+    uint8_t use_jetpack;
 } player_t;
 
 typedef struct {

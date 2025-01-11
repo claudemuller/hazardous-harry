@@ -21,6 +21,8 @@ static void check_collisions(void);
 static void process_input(void);
 static void update(float dt);
 static void scroll_screen(void);
+static void update_level(void);
+static void start_level(void);
 static void check_player_move(void);
 static void move_player(float dt);
 static void pickup_item(uint8_t, uint8_t);
@@ -126,6 +128,8 @@ int game_run(void)
 
     // uint32_t timer_start = 0, timer_end = 0, delay = 0;
 
+    start_level();
+
     while (game->is_running) {
         // timer_start = SDL_GetTicks();
 
@@ -196,8 +200,15 @@ static int init_assets(void)
         strcat(fname, ".bmp");
 
         // Harry tiles
-        if (i >= 53 && i <= 59) {
-            mask_offset = 7;
+        if ((i >= 53 && i <= 59) || i == 67 || i == 68 || (i >= 71 && i <= 73) || (i >= 77 && i <= 82)) {
+            if (i >= 53 && i <= 59)
+                mask_offset = 7;
+            if (i >= 67 && i <= 68)
+                mask_offset = 2;
+            if (i >= 71 && i <= 73)
+                mask_offset = 3;
+            if (i >= 77 && i <= 82)
+                mask_offset = 6;
 
             surface = SDL_LoadBMP(fname);
             if (!surface) {
@@ -307,6 +318,7 @@ static void update(float dt)
     check_player_move();
     move_player(dt);
     scroll_screen();
+    update_level();
     clear_input();
 }
 
@@ -339,6 +351,58 @@ static void scroll_screen(void)
             game->scroll_x++;
         }
     }
+}
+
+static void update_level(void)
+{
+    if (game->player.check_door) {
+        if (game->player.trophy) {
+            if (game->cur_level < 9) {
+                game->cur_level++;
+                start_level();
+            } else {
+                printf("Winner, winner, chicken dinner - your score was %u!\n", game->player.score);
+                game->is_running = false;
+            }
+        } else {
+            game->player.check_door = 0;
+        }
+    }
+}
+
+static void start_level(void)
+{
+    switch (game->cur_level) {
+    case 0: {
+        game->player.x = 2;
+        game->player.y = 8;
+    } break;
+
+    case 1: {
+        game->player.x = 1;
+        game->player.y = 8;
+    } break;
+
+    case 2: {
+        game->player.x = 2;
+        game->player.y = 5;
+    } break;
+
+    case 3: {
+        game->player.x = 1;
+        game->player.y = 5;
+    } break;
+    }
+
+    game->player.px = game->player.x * TILE_SIZE;
+    game->player.py = game->player.y * TILE_SIZE;
+    game->player.trophy = 0;
+    game->player.gun = 0;
+    game->player.jetpack = 0;
+    game->player.check_door = 0;
+    game->player.jump_timer = 0;
+    game->view_x = 0;
+    game->view_y = 0;
 }
 
 static void check_player_move(void)
@@ -416,9 +480,22 @@ static void pickup_item(uint8_t grid_x, uint8_t grid_y)
 
     char pickup_msg[256];
     sprintf(pickup_msg, "picked up item: %d", type);
-    log_info("pickup_item", pickup_msg);
+    LOG_INFO("pickup_item", pickup_msg, "something else");
 
     switch (type) {
+    case TILE_JETPACK: {
+        game->player.jetpack = 0xff;
+    } break;
+
+    case TILE_TROPHY: {
+        game->player.score += SCORE_TROPHY;
+        game->player.trophy = 1;
+    } break;
+
+    case TILE_GUN: {
+        game->player.gun = 1;
+    } break;
+
     default:
         break;
     }
@@ -434,6 +511,10 @@ static void clear_input(void)
     game->player.try_right = 0;
     game->player.try_left = 0;
     game->player.try_jump = 0;
+    game->player.try_down = 0;
+    game->player.try_up = 0;
+    game->player.try_fire = 0;
+    game->player.try_jetpack = 0;
 }
 
 static void render_world(void)
@@ -497,7 +578,19 @@ static uint8_t is_clear(uint16_t px, uint16_t py)
     }
 
     switch (type) {
-    case 10:
+    case TILE_DOOR: {
+        game->player.check_door = 1;
+    } break;
+
+    case TILE_JETPACK: {
+        game->player.use_jetpack = 1;
+    } break;
+
+    case TILE_GUN: {
+        game->player.gun = 1;
+    } break;
+
+    case TILE_TROPHY:
     case 47:
     case 48:
     case 49:
