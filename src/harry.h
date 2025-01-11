@@ -10,7 +10,6 @@
 #define TILE_SIZE 16
 #define NUM_TILES 158
 
-#define PLAYER_TILE 56
 #define PLAYER_W 20
 #define PLAYER_H 16
 #define PLAYER_START_X 2
@@ -30,8 +29,13 @@
 #define TILE_JETPACK 4
 #define TILE_TROPHY 10
 #define TILE_GUN 20
+#define TILE_PLAYER_STANDING 56
+#define TILE_PLAYER_JUMP_LEFT 67
+#define TILE_PLAYER_JUMP_RIGHT 68
 #define TILE_BULLET_LEFT 127
 #define TILE_BULLET_RIGHT 128
+#define TILE_JETPACK_LEFT 77
+#define TILE_JETPACK_RIGHT 80
 
 #define SCORE_TROPHY 1000
 
@@ -54,7 +58,6 @@ typedef struct {
 
     uint8_t try_right;
     uint8_t try_left;
-    uint8_t try_up;
     uint8_t try_down;
     uint8_t try_jump;
     uint8_t try_fire;
@@ -67,7 +70,7 @@ typedef struct {
     uint8_t jump;
     uint8_t jump_timer;
     uint8_t fire;
-    uint8_t use_jetpack;
+    uint8_t using_jetpack;
 
     int8_t last_dir;
     uint8_t on_ground;
@@ -77,6 +80,7 @@ typedef struct {
     uint8_t trophy;
     uint8_t gun;
     uint8_t jetpack;
+    uint8_t jetpack_delay;
 
     uint16_t pbullet_px;
     uint16_t pbullet_py;

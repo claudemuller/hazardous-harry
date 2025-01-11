@@ -58,6 +58,7 @@ int game_init(void)
     game->player.try_right = 0;
     game->player.try_left = 0;
     game->player.try_jump = 0;
+    game->player.try_jetpack = 0;
     game->player.check_pickup_x = 0;
     game->player.check_pickup_y = 0;
 
@@ -391,6 +392,18 @@ static void scroll_screen(void)
 
 static void update_level(void)
 {
+    if (game->player.jetpack_delay) {
+        game->player.jetpack_delay--;
+    }
+
+    // Jetpacks burn fuel when in use
+    if (game->player.using_jetpack) {
+        game->player.jetpack--;
+        if (!game->player.jetpack) {
+            game->player.using_jetpack = 0;
+        }
+    }
+
     if (game->player.check_door) {
         if (game->player.trophy) {
             if (game->cur_level < 9) {
@@ -435,7 +448,7 @@ static void start_level(void)
     game->player.trophy = 0;
     game->player.gun = 0;
     game->player.fire = 0;
-    game->player.jetpack = 0;
+    game->player.using_jetpack = 0;
     game->player.check_door = 0;
     game->player.jump_timer = 0;
     game->view_x = 0;
@@ -482,8 +495,8 @@ static void verify_input(void)
         game->player.left = 1;
     }
 
-    if (game->player.try_jump && game->player.on_ground && !game->player.jump && game->player.collision_point[0] &&
-        game->player.collision_point[1]) {
+    if (game->player.try_jump && game->player.on_ground && !game->player.jump && !game->player.using_jetpack &&
+        game->player.collision_point[0] && game->player.collision_point[1]) {
         game->player.jump = 1;
     }
 
@@ -491,17 +504,18 @@ static void verify_input(void)
         game->player.fire = 1;
     }
 
-    if (game->player.try_jetpack && game->player.jetpack) {
-        game->player.use_jetpack = !game->player.use_jetpack;
+    if (game->player.try_jetpack && game->player.jetpack && !game->player.jetpack_delay) {
+        game->player.using_jetpack = !game->player.using_jetpack;
+        game->player.jetpack_delay = 10;
     }
 
-    if (game->player.try_down && game->player.use_jetpack && game->player.collision_point[4] &&
+    if (game->player.try_down && game->player.using_jetpack && game->player.collision_point[4] &&
         game->player.collision_point[5]) {
         game->player.down = 1;
     }
 
-    if (game->player.try_up && game->player.use_jetpack && game->player.collision_point[4] &&
-        game->player.collision_point[5]) {
+    if (game->player.try_jump && game->player.using_jetpack && game->player.collision_point[0] &&
+        game->player.collision_point[1]) {
         game->player.up = 1;
     }
 }
@@ -536,6 +550,11 @@ static void move_player(float dt)
         game->player.up = 0;
     }
 
+    if (game->player.using_jetpack) {
+        game->player.jump = 0;
+        game->player.jump_timer = 0;
+    }
+
     if (game->player.jump) {
         if (!game->player.jump_timer) {
             game->player.jump_timer = 55;
@@ -559,7 +578,7 @@ static void move_player(float dt)
     }
 
     // Add gravity
-    if (!game->player.jump && !game->player.on_ground) {
+    if (!game->player.jump && !game->player.on_ground && !game->player.using_jetpack) {
         if (is_clear(game->player.px + 4, game->player.py + 17, 1)) {
             game->player.py += PLAYER_MOVE;
         } else {
@@ -634,7 +653,6 @@ static void clear_input(void)
     game->player.try_left = 0;
     game->player.try_jump = 0;
     game->player.try_down = 0;
-    game->player.try_up = 0;
     game->player.try_fire = 0;
     game->player.try_jetpack = 0;
 }
@@ -661,13 +679,23 @@ static void render_world(void)
 
 static void render_player(void)
 {
-    uint8_t tile_index = PLAYER_TILE;
+    uint8_t tile_index = TILE_PLAYER_STANDING;
     SDL_Rect dest = {
         .x = game->player.px - game->view_x * TILE_SIZE,
         .y = game->player.py,
         .w = PLAYER_W,
         .h = PLAYER_H,
     };
+
+    // TODO(claude): fix the messed up jetpack :/
+    if (game->player.using_jetpack) {
+        tile_index = game->player.last_dir >= 0 ? TILE_JETPACK_LEFT : TILE_JETPACK_RIGHT;
+    } else {
+        if (game->player.jump || !game->player.on_ground) {
+            tile_index = game->player.last_dir >= 0 ? TILE_PLAYER_JUMP_LEFT : TILE_PLAYER_JUMP_RIGHT;
+        }
+    }
+
     SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
 }
 
@@ -743,9 +771,8 @@ static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player)
         } break;
 
         case TILE_JETPACK: {
-            game->player.use_jetpack = 1;
-        } break;
-
+            game->player.using_jetpack = 1;
+        };
         case TILE_GUN: {
             game->player.gun = 1;
         };
