@@ -12,6 +12,7 @@ static game_assets_t *assets;
 SDL_Window *window;
 SDL_Renderer *renderer;
 TTF_Font *font;
+char debug_text[1000] = {0};
 
 static int init_assets(void);
 
@@ -29,7 +30,7 @@ static void clear_input(void);
 static void render(void);
 static void render_world(void);
 static void render_player(void);
-static void render_ui(void);
+static void render_debug_ui(void);
 
 static uint8_t is_clear(uint16_t px, uint16_t py);
 
@@ -48,21 +49,13 @@ int game_init(void)
 
     game->is_running = false;
     game->ticks_last_frame = SDL_GetTicks();
-    game->view_x = 0;
-    game->view_y = 0;
     game->cur_level = 0;
     game->scroll_x = 0;
 
-    game->player.x = PLAYER_START_X;
-    game->player.y = PLAYER_START_Y;
-    game->player.px = game->player.x * TILE_SIZE;
-    game->player.py = game->player.y * TILE_SIZE;
-    game->player.jump_timer = 0;
     game->player.on_ground = 1;
     game->player.try_right = 0;
     game->player.try_left = 0;
     game->player.try_jump = 0;
-    game->player.on_ground = 1;
     game->player.check_pickup_x = 0;
     game->player.check_pickup_y = 0;
 
@@ -113,7 +106,7 @@ int game_init(void)
     SDL_RenderSetScale(renderer, DISPLAY_SCALE, DISPLAY_SCALE);
 
     // TODO(claude): clean up :(
-    font = TTF_OpenFont("/home/lukefilewalker/repos/tyler.c/assets/fonts/DroidSans.ttf", 12);
+    font = TTF_OpenFont("/home/lukefilewalker/repos/tyler.c/assets/fonts/DroidSans.ttf", 10);
     if (!font) {
         SDL_Log("Font could not be loaded! TTF_Error: %s", TTF_GetError());
         SDL_DestroyRenderer(renderer);
@@ -347,13 +340,17 @@ static void render(void)
 
     render_world();
     render_player();
-    render_ui();
+    render_debug_ui();
 
     SDL_RenderPresent(renderer);
 }
 
 static void scroll_screen(void)
 {
+    sprintf(debug_text, "player.x = %d\n", game->player.x);
+    sprintf(debug_text, "game->view_x = %d\n", game->view_x);
+    sprintf(debug_text, "player.x - game->view_x = %d", game->player.x - game->view_x);
+
     if (game->player.x - game->view_x >= 18) {
         game->scroll_x = 15;
     }
@@ -434,14 +431,14 @@ static void start_level(void)
 static void check_player_move(void)
 {
     if (game->player.try_right && game->player.collision_point[2] && game->player.collision_point[3]) {
-        game->player.right = game->player.try_right;
+        game->player.right = 1;
     }
     if (game->player.try_left && game->player.collision_point[6] && game->player.collision_point[7]) {
-        game->player.left = game->player.try_left;
+        game->player.left = 1;
     }
     if (game->player.try_jump && game->player.on_ground && !game->player.jump && game->player.collision_point[0] &&
         game->player.collision_point[1]) {
-        game->player.jump = game->player.try_jump;
+        game->player.jump = 1;
     }
 }
 
@@ -449,8 +446,8 @@ static void move_player(float dt)
 {
     // const float MUL = 45.0f;
 
-    game->player.px = game->player.x * TILE_SIZE;
-    game->player.py = game->player.y * TILE_SIZE;
+    game->player.x = game->player.px / TILE_SIZE;
+    game->player.y = game->player.py / TILE_SIZE;
 
     if (game->player.right) {
         // float px = PLAYER_MOVE; // * MUL * dt;
@@ -462,9 +459,10 @@ static void move_player(float dt)
         game->player.px -= PLAYER_MOVE;
         game->player.left = 0;
     }
+
     if (game->player.jump) {
         if (!game->player.jump_timer) {
-            game->player.jump_timer = 25;
+            game->player.jump_timer = 55;
         }
 
         // TODO(claude): add delta time to jump
@@ -577,12 +575,10 @@ static void render_player(void)
     SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
 }
 
-static void render_ui(void)
+static void render_debug_ui(void)
 {
     SDL_Color textColor = {255, 255, 255, 255}; // White color
-    char fps[10];
-    sprintf(fps, "%d", game->delay);
-    SDL_Surface *surface = TTF_RenderText_Solid(font, fps, textColor);
+    SDL_Surface *surface = TTF_RenderText_Solid(font, debug_text, textColor);
     if (!surface) {
         SDL_Log("Unable to create text surface! TTF_Error: %s", TTF_GetError());
         return;
