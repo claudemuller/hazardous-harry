@@ -21,6 +21,8 @@
 #define FRAME_TIME_LEN (1000.0 / FPS)
 #define DISPLAY_SCALE 3
 
+#define COLOUR_WHITE 0xff
+
 typedef struct {
     uint8_t path[256];
     uint8_t tiles[1000];

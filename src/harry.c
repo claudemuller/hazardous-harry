@@ -1,4 +1,7 @@
 #include "harry.h"
+#include "SDL_pixels.h"
+#include "SDL_render.h"
+#include "SDL_surface.h"
 #include "SDL_timer.h"
 #include "error.h"
 #include "log.h"
@@ -55,6 +58,12 @@ int game_init(void)
     game->player.py = game->player.y * TILE_SIZE;
     game->player.jump_timer = 0;
     game->player.on_ground = 1;
+    game->player.try_right = 0;
+    game->player.try_left = 0;
+    game->player.try_jump = 0;
+    game->player.on_ground = 1;
+    game->player.check_pickup_x = 0;
+    game->player.check_pickup_y = 0;
 
     log_info("game_init", "loading levels");
 
@@ -171,6 +180,13 @@ static int init_assets(void)
 
     char fname[ASSET_FNAME_SIZE];
     char file_num[4];
+    char mname[ASSET_FNAME_SIZE];
+    char mask_num[4];
+    SDL_Surface *surface;
+    SDL_Surface *mask_surface;
+    uint8_t mask_offset;
+    uint8_t *player_pixels;
+    uint8_t *mask_pixels;
 
     for (size_t i = 0; i < NUM_TILES; i++) {
         fname[0] = '\0';
@@ -179,14 +195,47 @@ static int init_assets(void)
         strcat(fname, file_num);
         strcat(fname, ".bmp");
 
-        SDL_Surface *surface = SDL_LoadBMP(fname);
-        if (!surface) {
-            return err_fatal(ERR_SDL_LOADING_BMP, fname);
+        // Harry tiles
+        if (i >= 53 && i <= 59) {
+            mask_offset = 7;
+
+            surface = SDL_LoadBMP(fname);
+            if (!surface) {
+                return err_fatal(ERR_SDL_LOADING_BMP, fname);
+            }
+            player_pixels = (uint8_t *)surface->pixels;
+
+            mname[0] = '\0';
+            strcat(mname, "res/tile");
+            sprintf(&mask_num[0], "%u", (uint8_t)i + mask_offset);
+            strcat(mname, mask_num);
+            strcat(mname, ".bmp");
+
+            mask_surface = SDL_LoadBMP(mname);
+            if (!mask_surface) {
+                return err_fatal(ERR_SDL_LOADING_BMP, mname);
+            }
+            mask_pixels = (uint8_t *)mask_surface->pixels;
+
+            // Go through tile and make pixels white where they aren't black
+            for (int j = 0; j < mask_surface->pitch * mask_surface->h; j++) {
+                player_pixels[j] = mask_pixels[j] ? COLOUR_WHITE : player_pixels[j];
+            }
+            SDL_SetColorKey(surface, 1, SDL_MapRGB(surface->format, COLOUR_WHITE, COLOUR_WHITE, COLOUR_WHITE));
+            assets->gfx_tiles[i] = SDL_CreateTextureFromSurface(renderer, surface);
+
+            SDL_FreeSurface(surface);
+            SDL_FreeSurface(mask_surface);
+        } else {
+            surface = SDL_LoadBMP(fname);
+            if (!surface) {
+                return err_fatal(ERR_SDL_LOADING_BMP, fname);
+            }
+
+            assets->gfx_tiles[i] = SDL_CreateTextureFromSurface(renderer, surface);
+
+            SDL_FreeSurface(surface);
         }
-
-        assets->gfx_tiles[i] = SDL_CreateTextureFromSurface(renderer, surface);
-
-        SDL_FreeSurface(surface);
     }
 
     return SUCCESS;
