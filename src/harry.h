@@ -14,7 +14,7 @@
 
 #define NUM_TILES 158
 #define NUM_LEVELS 10
-#define NUM_MONSTERS 5
+#define NUM_enemyS 5
 #define NUM_START_LIVES 3
 
 #define DEATH_TIME 30
@@ -29,6 +29,18 @@
 #define BULLET_H 3
 
 #define COLOUR_WHITE 0xff
+#define COLOUR_BLACK 0x00
+
+#define LEVEL_1 0
+#define LEVEL_2 1
+#define LEVEL_3 2
+#define LEVEL_4 3
+#define LEVEL_5 4
+#define LEVEL_6 5
+#define LEVEL_7 6
+#define LEVEL_8 7
+#define LEVEL_9 8
+#define LEVEL_10 0
 
 #define TILE_DOOR 2
 #define TILE_JETPACK 4
@@ -44,10 +56,10 @@
 #define TILE_JETPACK_LEFT 77
 #define TILE_JETPACK_RIGHT 80
 
-#define TILE_MONSTER_SPIDER 89
-#define TILE_MONSTER_PURPER 93
-#define TILE_MONSTER_BULLET_LEFT 121
-#define TILE_MONSTER_BULLET_RIGHT 124
+#define TILE_ENEMY_SPIDER 89
+#define TILE_ENEMY_PURPER 93
+#define TILE_ENEMY_BULLET_LEFT 121
+#define TILE_ENEMY_BULLET_RIGHT 124
 
 #define SCORE_TROPHY 1000
 
@@ -66,6 +78,7 @@ typedef struct {
     uint8_t score;
     uint8_t lives;
     int8_t death_timer;
+    int8_t tick;
 
     uint8_t collision_point[9];
 
@@ -111,13 +124,14 @@ typedef struct {
     uint16_t py;
     int8_t next_px;
     int8_t next_py;
-} monster_t;
+} enemy_t;
 
 typedef struct {
     bool debug;
     bool is_running;
     uint32_t ticks_last_frame;
     uint32_t delay;
+    uint8_t tick;
     uint8_t cur_level;
 
     uint8_t view_x;
@@ -126,7 +140,7 @@ typedef struct {
 
     level_t level[NUM_LEVELS];
     player_t player;
-    monster_t monsters[NUM_MONSTERS];
+    enemy_t enemys[NUM_enemyS];
     uint16_t ebullet_px;
     uint16_t ebullet_py;
     int8_t ebullet_dir;

@@ -1,6 +1,9 @@
 #include "harry.h"
+#include "SDL_pixels.h"
+#include "SDL_surface.h"
 #include "error.h"
 #include "log.h"
+#include "utils.h"
 #include <SDL2/SDL_ttf.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -32,17 +35,18 @@ static void update_pbullet(void);
 static void update_ebullet(void);
 static void verify_input(void);
 static void move_player(float dt);
-static void move_monsters(float dt);
+static void move_enemys(float dt);
 static void pickup_item(uint8_t, uint8_t);
 static void clear_input(void);
+static uint8_t update_frame(uint8_t tile, uint8_t salt);
 
 static void render(void);
 static void render_world(void);
 static void render_player(void);
-static void render_monsters(void);
+static void render_enemys(void);
 // TODO:(lukefilewalker) combine these into render funcs?
 static void render_player_bullet(void);
-static void render_monsters_bullet(void);
+static void render_enemys_bullet(void);
 static void render_debug_ui(void);
 
 static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player);
@@ -65,9 +69,10 @@ int game_init(const bool debug)
     game->debug = debug;
     game->is_running = false;
     game->ticks_last_frame = SDL_GetTicks();
-    game->cur_level = 2;
+    game->cur_level = LEVEL_4;
     // TODO:(lukefilewalker): remove this init code when you've confirmed that game data is init'd to 0
     game->scroll_x = 0;
+    game->tick = 0;
 
     game->player.on_ground = 1;
     game->player.lives = NUM_START_LIVES;
@@ -79,8 +84,8 @@ int game_init(const bool debug)
     game->player.check_pickup_x = 0;
     game->player.check_pickup_y = 0;
 
-    for (int i = 0; i < NUM_MONSTERS; i++) {
-        game->monsters[i].type = 0;
+    for (int i = 0; i < NUM_enemyS; i++) {
+        game->enemys[i].type = 0;
     }
 
     log_info("game_init", "loading levels");
@@ -277,6 +282,10 @@ static int init_assets(void)
             if (!surface) {
                 return err_fatal(ERR_SDL_LOADING_BMP, fname);
             }
+            // TODO:(lukefilewalker) and these?
+            if ((i >= 89 && i <= 120) || (i >= 129 && i <= 132)) {
+                SDL_SetColorKey(surface, 1, SDL_MapRGB(surface->format, COLOUR_BLACK, COLOUR_BLACK, COLOUR_BLACK));
+            }
 
             assets->gfx_tiles[i] = SDL_CreateTextureFromSurface(renderer, surface);
 
@@ -363,7 +372,7 @@ static void update(float dt)
     update_ebullet();
     verify_input();
     move_player(dt);
-    move_monsters(dt);
+    move_enemys(dt);
     scroll_screen();
     update_level();
     clear_input();
@@ -376,9 +385,9 @@ static void render(void)
 
     render_world();
     render_player();
-    render_monsters();
+    render_enemys();
     render_player_bullet();
-    render_monsters_bullet();
+    render_enemys_bullet();
 
     if (game->debug) {
         SDL_RenderSetScale(renderer, 1, 1);
@@ -418,6 +427,8 @@ static void scroll_screen(void)
 
 static void update_level(void)
 {
+    game->tick++;
+
     if (game->player.jetpack_delay) {
         game->player.jetpack_delay--;
     }
@@ -459,19 +470,19 @@ static void update_level(void)
         }
     }
 
-    for (size_t i = 0; i < NUM_MONSTERS; i++) {
-        if (game->monsters[i].death_timer) {
-            game->monsters[i].death_timer--;
-            // Monster has died
-            if (!game->monsters[i].death_timer) {
-                game->monsters[i].type = 0;
+    for (size_t i = 0; i < NUM_enemyS; i++) {
+        if (game->enemys[i].death_timer) {
+            game->enemys[i].death_timer--;
+            // enemy has died
+            if (!game->enemys[i].death_timer) {
+                game->enemys[i].type = 0;
             }
         } else {
-            if (game->monsters[i].type) {
-                // If player and monster collide, everyone dies
-                if (game->monsters[i].x == game->player.x && game->monsters[i].y == game->player.y) {
+            if (game->enemys[i].type) {
+                // If player and enemy collide, everyone dies
+                if (game->enemys[i].x == game->player.x && game->enemys[i].y == game->player.y) {
                     game->player.death_timer = DEATH_TIME;
-                    game->monsters[i].death_timer = DEATH_TIME;
+                    game->enemys[i].death_timer = DEATH_TIME;
                 }
             }
         }
@@ -480,41 +491,43 @@ static void update_level(void)
 
 static void start_level(void)
 {
-    add_debug_msg("level: %s", "1");
+    char level_str;
+    itoa(game->cur_level + 1, &level_str, 10);
+    add_debug_msg("level: %s", &level_str);
 
     restart_level();
 
-    for (int i = 0; i < NUM_MONSTERS; i++) {
-        game->monsters[i].type = 0;
+    for (int i = 0; i < NUM_enemyS; i++) {
+        game->enemys[i].type = 0;
     }
 
     switch (game->cur_level) {
     case 2: {
-        game->monsters[0].type = TILE_MONSTER_SPIDER;
-        game->monsters[0].path_index = 0;
-        game->monsters[0].px = 44 * TILE_SIZE;
-        game->monsters[0].py = 4 * TILE_SIZE;
-        game->monsters[0].next_px = 0;
-        game->monsters[0].next_py = 0;
-        game->monsters[0].death_timer = 0;
+        game->enemys[0].type = TILE_ENEMY_SPIDER;
+        game->enemys[0].path_index = 0;
+        game->enemys[0].px = 44 * TILE_SIZE;
+        game->enemys[0].py = 4 * TILE_SIZE;
+        game->enemys[0].next_px = 0;
+        game->enemys[0].next_py = 0;
+        game->enemys[0].death_timer = 0;
 
-        game->monsters[1].type = TILE_MONSTER_SPIDER;
-        game->monsters[1].path_index = 0;
-        game->monsters[1].px = 59 * TILE_SIZE;
-        game->monsters[1].py = 4 * TILE_SIZE;
-        game->monsters[1].next_px = 0;
-        game->monsters[1].next_py = 0;
-        game->monsters[1].death_timer = 0;
+        game->enemys[1].type = TILE_ENEMY_SPIDER;
+        game->enemys[1].path_index = 0;
+        game->enemys[1].px = 59 * TILE_SIZE;
+        game->enemys[1].py = 4 * TILE_SIZE;
+        game->enemys[1].next_px = 0;
+        game->enemys[1].next_py = 0;
+        game->enemys[1].death_timer = 0;
     } break;
 
     case 3: {
-        game->monsters[0].type = TILE_MONSTER_PURPER;
-        game->monsters[0].path_index = 0;
-        game->monsters[0].px = 32 * TILE_SIZE;
-        game->monsters[0].py = 2 * TILE_SIZE;
-        game->monsters[0].next_px = 0;
-        game->monsters[0].next_py = 0;
-        game->monsters[0].death_timer = 0;
+        game->enemys[0].type = TILE_ENEMY_PURPER;
+        game->enemys[0].path_index = 0;
+        game->enemys[0].px = 32 * TILE_SIZE;
+        game->enemys[0].py = 2 * TILE_SIZE;
+        game->enemys[0].next_px = 0;
+        game->enemys[0].next_py = 0;
+        game->enemys[0].death_timer = 0;
     } break;
 
     default:
@@ -623,14 +636,14 @@ static void update_pbullet(void)
     if (game->player.bullet_px) {
         game->player.bullet_px += game->player.bullet_dir * BULLET_SPEED;
 
-        for (size_t i = 0; i < NUM_MONSTERS; i++) {
-            if (game->monsters[i].type) {
-                uint8_t mx = game->monsters[i].x;
-                uint8_t my = game->monsters[i].y;
+        for (size_t i = 0; i < NUM_enemyS; i++) {
+            if (game->enemys[i].type) {
+                uint8_t mx = game->enemys[i].x;
+                uint8_t my = game->enemys[i].y;
 
                 if ((grid_y == my || grid_y == my + 1) && (grid_x == mx || grid_x == mx + 1)) {
                     game->player.bullet_px = game->player.bullet_py = 0;
-                    game->monsters[i].death_timer = DEATH_TIME;
+                    game->enemys[i].death_timer = DEATH_TIME;
                 }
             }
         }
@@ -709,6 +722,10 @@ static void verify_input(void)
 
 static void move_player(float dt)
 {
+    // if (game->player.death_timer) {
+    //     return;
+    // }
+
     game->player.x = game->player.px / TILE_SIZE;
     game->player.y = game->player.py / TILE_SIZE;
 
@@ -717,12 +734,14 @@ static void move_player(float dt)
         game->player.px += PLAYER_MOVE;
         game->player.right = 0;
         game->player.last_dir = 1;
+        game->player.tick++;
     }
     if (game->player.left) {
         // float px = PLAYER_MOVE; // * MUL * dt;
         game->player.px -= PLAYER_MOVE;
         game->player.left = 0;
         game->player.last_dir = -1;
+        game->player.tick++;
     }
 
     if (game->player.down) {
@@ -797,10 +816,10 @@ static void move_player(float dt)
     }
 }
 
-static void move_monsters(float dt)
+static void move_enemys(float dt)
 {
-    for (uint8_t i = 0; i < NUM_MONSTERS; i++) {
-        monster_t *m = &game->monsters[i];
+    for (uint8_t i = 0; i < NUM_enemyS; i++) {
+        enemy_t *m = &game->enemys[i];
         if (m->type && !m->death_timer) {
             if (!m->next_px && !m->next_py) {
                 m->next_px = game->level[game->cur_level].path[m->path_index];
@@ -838,27 +857,27 @@ static void move_monsters(float dt)
         }
     }
 
-    // Monsters firing
+    // enemys firing
     if (!game->ebullet_px && !game->ebullet_py) {
-        for (uint8_t i = 0; i < NUM_MONSTERS; i++) {
-            if (game->monsters[i].type && is_visible(game->monsters[i].px) && !game->monsters[i].death_timer) {
-                game->ebullet_dir = game->player.px < game->monsters[i].px ? -1 : 1;
+        for (uint8_t i = 0; i < NUM_enemyS; i++) {
+            if (game->enemys[i].type && is_visible(game->enemys[i].px) && !game->enemys[i].death_timer) {
+                game->ebullet_dir = game->player.px < game->enemys[i].px ? -1 : 1;
 
                 // Default direction of bullet should be right
                 if (!game->ebullet_dir) {
                     game->ebullet_dir = 1;
                 }
 
-                // Create the bullet on the appropriate side of the monster
+                // Create the bullet on the appropriate side of the enemy
                 if (game->ebullet_dir == 1) {
-                    game->ebullet_px = game->monsters[i].px + 18;
+                    game->ebullet_px = game->enemys[i].px + 18;
                 }
                 if (game->ebullet_dir == -1) {
-                    game->ebullet_px = game->monsters[i].px - 8;
+                    game->ebullet_px = game->enemys[i].px - 8;
                 }
                 sprintf(debug_msgs[0], "bullet px: %d", game->ebullet_px);
 
-                game->ebullet_py = game->monsters[i].py + 8;
+                game->ebullet_py = game->enemys[i].py + 8;
             }
         }
     }
@@ -910,6 +929,39 @@ static void clear_input(void)
     game->player.try_jetpack = 0;
 }
 
+static uint8_t update_frame(uint8_t tile, uint8_t salt)
+{
+    uint8_t mod;
+
+    switch (tile) {
+    case 6: {
+        mod = 4;
+    } break;
+
+    case 10: {
+        mod = 5;
+    } break;
+
+    case 25: {
+        mod = 4;
+    } break;
+
+    case 36: {
+        mod = 5;
+    } break;
+
+    case 129: {
+        mod = 4;
+    } break;
+
+    default: {
+        mod = 1;
+    } break;
+    }
+
+    return tile + ((salt + game->tick) / 5) % mod;
+}
+
 static void render_world(void)
 {
     uint8_t tile_index;
@@ -925,6 +977,7 @@ static void render_world(void)
             dest.x = j * TILE_SIZE;
 
             tile_index = game->level[game->cur_level].tiles[i * 100 + game->view_x + j];
+            tile_index = update_frame(tile_index, dest.x);
             SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
         }
     }
@@ -940,6 +993,11 @@ static void render_player(void)
     };
 
     uint8_t tile_index = TILE_PLAYER_STANDING;
+    if (game->player.last_dir) {
+        // TODO:(lukefilewalker) Check what these magic numbers are
+        tile_index = game->player.last_dir > 0 ? 53 : 57;
+        tile_index += (game->player.tick / 5) % 3;
+    }
 
     if (game->player.using_jetpack) {
         tile_index = game->player.last_dir >= 0 ? TILE_JETPACK_LEFT : TILE_JETPACK_RIGHT;
@@ -950,18 +1008,20 @@ static void render_player(void)
     }
 
     if (game->player.death_timer) {
-        tile_index = TILE_DEATH;
+        // TODO:(lukefilewalker) for some reason macros freak the complier out here - find out why
+        tile_index = 129 + ((game->player.tick / 3) % 4);
     }
 
     SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
 }
 
-static void render_monsters(void)
+static void render_enemys(void)
 {
-    for (int i = 0; i < NUM_MONSTERS; i++) {
-        monster_t *m = &game->monsters[i];
+    for (int i = 0; i < NUM_enemyS; i++) {
+        enemy_t *m = &game->enemys[i];
         // TODO:(lukefilewalker) figure out whats going on with this magic num
         uint8_t tile_index = m->death_timer ? 129 : m->type;
+        tile_index += (game->tick / 3) % 4;
 
         if (m->type) {
             SDL_Rect dest = {
@@ -990,8 +1050,8 @@ static void render_player_bullet(void)
     }
 }
 
-// TODO:(lukefilewalker): combine with monster render?
-static void render_monsters_bullet(void)
+// TODO:(lukefilewalker): combine with enemy render?
+static void render_enemys_bullet(void)
 {
     if (game->ebullet_px && game->ebullet_py) {
         SDL_Rect dest = {
@@ -1000,7 +1060,7 @@ static void render_monsters_bullet(void)
             .w = BULLET_W,
             .h = BULLET_H,
         };
-        uint8_t tile_index = game->ebullet_dir > 0 ? TILE_MONSTER_BULLET_LEFT : TILE_MONSTER_BULLET_RIGHT;
+        uint8_t tile_index = game->ebullet_dir > 0 ? TILE_ENEMY_BULLET_LEFT : TILE_ENEMY_BULLET_RIGHT;
         SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
     }
 }
