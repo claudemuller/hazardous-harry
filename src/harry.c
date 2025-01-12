@@ -8,13 +8,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-static game_state_t *game;
-static game_assets_t *assets;
+static game_state_t *game = {0};
+static game_assets_t *assets = {0};
 static SDL_Window *window;
 static SDL_Renderer *renderer;
 static TTF_Font *font;
 
-// TODO(lukefilewalker): make this better :(
+// TODO:(lukefilewalker): make this better :(
 #define MAX_DEBUG_MESSAGES 20
 static uint8_t num_debug_msgs = 0;
 static char debug_msgs[MAX_DEBUG_MESSAGES][1000] = {0};
@@ -27,6 +27,7 @@ static void update(float dt);
 static void scroll_screen(void);
 static void update_level(void);
 static void start_level(void);
+static void restart_level(void);
 static void update_pbullet(void);
 static void update_ebullet(void);
 static void verify_input(void);
@@ -39,10 +40,9 @@ static void render(void);
 static void render_world(void);
 static void render_player(void);
 static void render_monsters(void);
-// TODO(lukefilewalker): combine these into render funcs?
+// TODO:(lukefilewalker) combine these into render funcs?
 static void render_player_bullet(void);
 static void render_monsters_bullet(void);
-
 static void render_debug_ui(void);
 
 static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player);
@@ -66,9 +66,12 @@ int game_init(const bool debug)
     game->is_running = false;
     game->ticks_last_frame = SDL_GetTicks();
     game->cur_level = 2;
+    // TODO:(lukefilewalker): remove this init code when you've confirmed that game data is init'd to 0
     game->scroll_x = 0;
 
     game->player.on_ground = 1;
+    game->player.lives = NUM_START_LIVES;
+    // TODO:(lukefilewalker): remove this init code when you've confirmed that player is init'd to 0
     game->player.try_right = 0;
     game->player.try_left = 0;
     game->player.try_jump = 0;
@@ -113,7 +116,7 @@ int game_init(const bool debug)
         return err_fatal(ERR_SDL_INIT, SDL_GetError());
     }
 
-    // TODO(lukefilewalker): clean up :(
+    // TODO:(lukefilewalker): clean up :(
     if (TTF_Init() == -1) {
         SDL_Log("SDL_ttf could not initialize! TTF_Error: %s", TTF_GetError());
         SDL_Quit();
@@ -126,7 +129,7 @@ int game_init(const bool debug)
 
     SDL_RenderSetScale(renderer, DISPLAY_SCALE, DISPLAY_SCALE);
 
-    // TODO(lukefilewalker): clean up :(
+    // TODO:(lukefilewalker): clean up :(
     font = TTF_OpenFont("/home/lukefilewalker/repos/tyler.c/assets/fonts/DroidSans.ttf", 16);
     if (!font) {
         SDL_Log("Font could not be loaded! TTF_Error: %s", TTF_GetError());
@@ -286,7 +289,7 @@ static int init_assets(void)
 
 static void check_collisions(void)
 {
-    // TODO(lukefilewalker): change to is_colliding
+    // TODO:(lukefilewalker): change to is_colliding
     game->player.collision_point[0] = is_clear(game->player.px + 4, game->player.py - 1, 1);
     game->player.collision_point[1] = is_clear(game->player.px + 10, game->player.py - 1, 1);
     game->player.collision_point[2] = is_clear(game->player.px + 11, game->player.py + 4, 1);
@@ -440,12 +443,107 @@ static void update_level(void)
             game->player.check_door = 0;
         }
     }
+
+    if (game->player.death_timer) {
+        game->player.death_timer--;
+        // If player died
+        if (!game->player.death_timer) {
+            // If player has lives remaining
+            if (game->player.lives) {
+                game->player.lives--;
+                // TODO:(lukefilewalker): does this have to be its own func? i.e. start_level(cur_level)
+                restart_level();
+            } else {
+                game->is_running = false;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < NUM_MONSTERS; i++) {
+        if (game->monsters[i].death_timer) {
+            game->monsters[i].death_timer--;
+            // Monster has died
+            if (!game->monsters[i].death_timer) {
+                game->monsters[i].type = 0;
+            }
+        } else {
+            if (game->monsters[i].type) {
+                // If player and monster collide, everyone dies
+                if (game->monsters[i].x == game->player.x && game->monsters[i].y == game->player.y) {
+                    game->player.death_timer = DEATH_TIME;
+                    game->monsters[i].death_timer = DEATH_TIME;
+                }
+            }
+        }
+    }
 }
 
 static void start_level(void)
 {
     add_debug_msg("level: %s", "1");
 
+    restart_level();
+
+    for (int i = 0; i < NUM_MONSTERS; i++) {
+        game->monsters[i].type = 0;
+    }
+
+    switch (game->cur_level) {
+    case 2: {
+        game->monsters[0].type = TILE_MONSTER_SPIDER;
+        game->monsters[0].path_index = 0;
+        game->monsters[0].px = 44 * TILE_SIZE;
+        game->monsters[0].py = 4 * TILE_SIZE;
+        game->monsters[0].next_px = 0;
+        game->monsters[0].next_py = 0;
+        game->monsters[0].death_timer = 0;
+
+        game->monsters[1].type = TILE_MONSTER_SPIDER;
+        game->monsters[1].path_index = 0;
+        game->monsters[1].px = 59 * TILE_SIZE;
+        game->monsters[1].py = 4 * TILE_SIZE;
+        game->monsters[1].next_px = 0;
+        game->monsters[1].next_py = 0;
+        game->monsters[1].death_timer = 0;
+    } break;
+
+    case 3: {
+        game->monsters[0].type = TILE_MONSTER_PURPER;
+        game->monsters[0].path_index = 0;
+        game->monsters[0].px = 32 * TILE_SIZE;
+        game->monsters[0].py = 2 * TILE_SIZE;
+        game->monsters[0].next_px = 0;
+        game->monsters[0].next_py = 0;
+        game->monsters[0].death_timer = 0;
+    } break;
+
+    default:
+        break;
+    }
+
+    game->player.px = game->player.x * TILE_SIZE;
+    game->player.py = game->player.y * TILE_SIZE;
+    game->player.trophy = 0;
+    game->player.gun = 0;
+    game->player.fire = 0;
+    game->player.using_jetpack = 0;
+    game->player.jetpack = 0;
+    game->player.death_timer = 0;
+    game->player.check_door = 0;
+    game->player.jump_timer = 0;
+    game->view_x = 0;
+    game->view_y = 0;
+    game->player.last_dir = 0;
+    game->player.bullet_px = 0;
+    game->player.bullet_py = 0;
+    game->player.bullet_dir = 0;
+    game->ebullet_px = 0;
+    game->ebullet_py = 0;
+    game->ebullet_dir = 0;
+}
+static void restart_level(void)
+{
+    // Set player positions in level
     switch (game->cur_level) {
     case 0: {
         game->player.x = 2;
@@ -498,75 +596,48 @@ static void start_level(void)
     } break;
     }
 
-    for (int i = 0; i < NUM_MONSTERS; i++) {
-        game->monsters[i].type = 0;
-    }
-
-    switch (game->cur_level) {
-    case 2: {
-        game->monsters[0].type = TILE_MONSTER_SPIDER;
-        game->monsters[0].path_index = 0;
-        game->monsters[0].px = 44 * TILE_SIZE;
-        game->monsters[0].py = 4 * TILE_SIZE;
-        game->monsters[0].next_px = 0;
-        game->monsters[0].next_py = 0;
-
-        game->monsters[1].type = TILE_MONSTER_SPIDER;
-        game->monsters[1].path_index = 0;
-        game->monsters[1].px = 59 * TILE_SIZE;
-        game->monsters[1].py = 4 * TILE_SIZE;
-        game->monsters[1].next_px = 0;
-        game->monsters[1].next_py = 0;
-    } break;
-
-    default:
-        break;
-    }
-
     game->player.px = game->player.x * TILE_SIZE;
     game->player.py = game->player.y * TILE_SIZE;
-    game->player.trophy = 0;
-    game->player.gun = 0;
-    game->player.fire = 0;
-    game->player.using_jetpack = 0;
-    game->player.jetpack = 0;
-    game->player.check_door = 0;
-    game->player.jump_timer = 0;
-    game->view_x = 0;
-    game->view_y = 0;
-    game->player.last_dir = 0;
-    game->player.pbullet_px = 0;
-    game->player.pbullet_py = 0;
-    game->player.pbullet_dir = 0;
-    game->ebullet_px = 0;
-    game->ebullet_py = 0;
-    game->ebullet_dir = 0;
 }
 
 static void update_pbullet(void)
 {
-    uint8_t grid_x;
 
-    if (!game->player.pbullet_px || !game->player.pbullet_py) {
+    if (!game->player.bullet_px || !game->player.bullet_py) {
         return;
     }
 
-    game->player.pbullet_px += game->player.pbullet_dir * BULLET_SPEED;
-
-    // If bullet hits a collidable tile, remove it
-    if (!is_clear(game->player.pbullet_px, game->player.pbullet_py, 0)) {
-        game->player.pbullet_px = game->player.pbullet_py = 0;
+    // If bullet hits a collidable tile, remove the bullet
+    if (!is_clear(game->player.bullet_px, game->player.bullet_py, 0)) {
+        game->player.bullet_px = game->player.bullet_py = 0;
     }
 
-    grid_x = game->player.pbullet_px / TILE_SIZE;
+    uint8_t grid_x = game->player.bullet_px / TILE_SIZE;
+    uint8_t grid_y = game->player.bullet_py / TILE_SIZE;
 
     // If bullet reaches the end of the screen, remove it
     if (grid_x - game->view_x < 1 || grid_x - game->view_x > 20) {
-        game->player.pbullet_px = game->player.pbullet_py = 0;
+        game->player.bullet_px = game->player.bullet_py = 0;
+    }
+
+    if (game->player.bullet_px) {
+        game->player.bullet_px += game->player.bullet_dir * BULLET_SPEED;
+
+        for (size_t i = 0; i < NUM_MONSTERS; i++) {
+            if (game->monsters[i].type) {
+                uint8_t mx = game->monsters[i].x;
+                uint8_t my = game->monsters[i].y;
+
+                if ((grid_y == my || grid_y == my + 1) && (grid_x == mx || grid_x == mx + 1)) {
+                    game->player.bullet_px = game->player.bullet_py = 0;
+                    game->monsters[i].death_timer = DEATH_TIME;
+                }
+            }
+        }
     }
 }
 
-// TODO(lukefilewalker): combine with pullet update?
+// TODO:(lukefilewalker): combine with pullet update?
 static void update_ebullet(void)
 {
     if (!game->ebullet_px || !game->ebullet_py) {
@@ -585,11 +656,24 @@ static void update_ebullet(void)
 
     if (game->ebullet_px) {
         game->ebullet_px += game->ebullet_dir * BULLET_SPEED;
+
+        uint8_t grid_x = game->ebullet_px / TILE_SIZE;
+        uint8_t grid_y = game->ebullet_py / TILE_SIZE;
+
+        if ((grid_y == game->player.y || grid_y == game->player.y + 1) &&
+            (grid_x == game->player.x || grid_x == game->player.x + 1)) {
+            game->ebullet_px = game->ebullet_py = 0;
+            game->player.death_timer = DEATH_TIME;
+        }
     }
 }
 
 static void verify_input(void)
 {
+    if (game->player.death_timer) {
+        return;
+    }
+
     if (game->player.try_right && game->player.collision_point[2] && game->player.collision_point[3]) {
         game->player.right = 1;
     }
@@ -603,7 +687,7 @@ static void verify_input(void)
         game->player.jump = 1;
     }
 
-    if (game->player.try_fire && game->player.gun && !game->player.pbullet_px && !game->player.pbullet_py) {
+    if (game->player.try_fire && game->player.gun && !game->player.bullet_px && !game->player.bullet_py) {
         game->player.fire = 1;
     }
 
@@ -625,8 +709,6 @@ static void verify_input(void)
 
 static void move_player(float dt)
 {
-    // const float MUL = 45.0f;
-
     game->player.x = game->player.px / TILE_SIZE;
     game->player.y = game->player.py / TILE_SIZE;
 
@@ -664,7 +746,7 @@ static void move_player(float dt)
             game->player.last_dir = 0;
         }
 
-        // TODO(lukefilewalker): add delta time to jump
+        // TODO:(lukefilewalker): add delta time to jump
         if (game->player.collision_point[0] && game->player.collision_point[1]) {
             if (game->player.jump_timer > 10) {
                 game->player.py -= PLAYER_MOVE;
@@ -696,21 +778,21 @@ static void move_player(float dt)
 
     // Firing the gun
     if (game->player.fire) {
-        game->player.pbullet_dir = game->player.last_dir;
+        game->player.bullet_dir = game->player.last_dir;
 
-        if (!game->player.pbullet_dir) {
-            game->player.pbullet_dir = 1;
+        if (!game->player.bullet_dir) {
+            game->player.bullet_dir = 1;
         }
 
-        if (game->player.pbullet_dir == 1) {
-            game->player.pbullet_px = game->player.px + 18;
+        if (game->player.bullet_dir == 1) {
+            game->player.bullet_px = game->player.px + 18;
         }
 
-        if (game->player.pbullet_dir == -1) {
-            game->player.pbullet_px = game->player.px - 8;
+        if (game->player.bullet_dir == -1) {
+            game->player.bullet_px = game->player.px - 8;
         }
 
-        game->player.pbullet_py = game->player.py + 8;
+        game->player.bullet_py = game->player.py + 8;
         game->player.fire = 0;
     }
 }
@@ -719,7 +801,7 @@ static void move_monsters(float dt)
 {
     for (uint8_t i = 0; i < NUM_MONSTERS; i++) {
         monster_t *m = &game->monsters[i];
-        if (m->type) {
+        if (m->type && !m->death_timer) {
             if (!m->next_px && !m->next_py) {
                 m->next_px = game->level[game->cur_level].path[m->path_index];
                 m->next_py = game->level[game->cur_level].path[m->path_index + 1];
@@ -759,7 +841,7 @@ static void move_monsters(float dt)
     // Monsters firing
     if (!game->ebullet_px && !game->ebullet_py) {
         for (uint8_t i = 0; i < NUM_MONSTERS; i++) {
-            if (game->monsters[i].type && is_visible(game->monsters[i].px)) {
+            if (game->monsters[i].type && is_visible(game->monsters[i].px) && !game->monsters[i].death_timer) {
                 game->ebullet_dir = game->player.px < game->monsters[i].px ? -1 : 1;
 
                 // Default direction of bullet should be right
@@ -850,13 +932,14 @@ static void render_world(void)
 
 static void render_player(void)
 {
-    uint8_t tile_index = TILE_PLAYER_STANDING;
     SDL_Rect dest = {
         .x = game->player.px - game->view_x * TILE_SIZE,
         .y = game->player.py,
         .w = PLAYER_W,
         .h = PLAYER_H,
     };
+
+    uint8_t tile_index = TILE_PLAYER_STANDING;
 
     if (game->player.using_jetpack) {
         tile_index = game->player.last_dir >= 0 ? TILE_JETPACK_LEFT : TILE_JETPACK_RIGHT;
@@ -866,6 +949,10 @@ static void render_player(void)
         }
     }
 
+    if (game->player.death_timer) {
+        tile_index = TILE_DEATH;
+    }
+
     SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
 }
 
@@ -873,7 +960,8 @@ static void render_monsters(void)
 {
     for (int i = 0; i < NUM_MONSTERS; i++) {
         monster_t *m = &game->monsters[i];
-        uint8_t tile_index = m->type;
+        // TODO:(lukefilewalker) figure out whats going on with this magic num
+        uint8_t tile_index = m->death_timer ? 129 : m->type;
 
         if (m->type) {
             SDL_Rect dest = {
@@ -890,19 +978,19 @@ static void render_monsters(void)
 
 static void render_player_bullet(void)
 {
-    if (game->player.pbullet_px && game->player.pbullet_py) {
+    if (game->player.bullet_px && game->player.bullet_py) {
         SDL_Rect dest = {
-            .x = game->player.pbullet_px - game->view_x * TILE_SIZE,
-            .y = game->player.pbullet_py,
+            .x = game->player.bullet_px - game->view_x * TILE_SIZE,
+            .y = game->player.bullet_py,
             .w = BULLET_W,
             .h = BULLET_H,
         };
-        uint8_t tile_index = game->player.pbullet_dir > 0 ? TILE_PLAYER_BULLET_LEFT : TILE_PLAYER_BULLET_RIGHT;
+        uint8_t tile_index = game->player.bullet_dir > 0 ? TILE_PLAYER_BULLET_LEFT : TILE_PLAYER_BULLET_RIGHT;
         SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
     }
 }
 
-// TODO(lukefilewalker): combine with monster render?
+// TODO:(lukefilewalker): combine with monster render?
 static void render_monsters_bullet(void)
 {
     if (game->ebullet_px && game->ebullet_py) {
@@ -1036,6 +1124,14 @@ static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player)
             game->player.check_pickup_y = grid_y;
         } break;
 
+        case 6:
+        case 25:
+        case 36: {
+            if (!game->player.death_timer) {
+                game->player.death_timer = DEATH_TIME;
+            }
+        } break;
+
         default:
             break;
         }
@@ -1052,7 +1148,7 @@ static inline uint8_t is_visible(uint16_t px)
 
 static void add_debug_msg(char *format, char *msg)
 {
-    // TODO(lukefilewalker): create a circular buffer for the messages
+    // TODO:(lukefilewalker): create a circular buffer for the messages
     if (num_debug_msgs > MAX_DEBUG_MESSAGES) {
         LOG_INFO("debug messages", "we've run out of space :(");
         return;

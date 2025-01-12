@@ -10,11 +10,14 @@
 
 #define DISPLAY_SCALE 3
 #define ASSET_FNAME_SIZE 16
-
 #define TILE_SIZE 16
+
 #define NUM_TILES 158
 #define NUM_LEVELS 10
 #define NUM_MONSTERS 5
+#define NUM_START_LIVES 3
+
+#define DEATH_TIME 30
 
 #define PLAYER_W 20
 #define PLAYER_H 16
@@ -31,6 +34,8 @@
 #define TILE_JETPACK 4
 #define TILE_TROPHY 10
 #define TILE_GUN 20
+#define TILE_DEATH 129;
+
 #define TILE_PLAYER_STANDING 56
 #define TILE_PLAYER_JUMP_LEFT 67
 #define TILE_PLAYER_JUMP_RIGHT 68
@@ -38,7 +43,9 @@
 #define TILE_PLAYER_BULLET_RIGHT 128
 #define TILE_JETPACK_LEFT 77
 #define TILE_JETPACK_RIGHT 80
+
 #define TILE_MONSTER_SPIDER 89
+#define TILE_MONSTER_PURPER 93
 #define TILE_MONSTER_BULLET_LEFT 121
 #define TILE_MONSTER_BULLET_RIGHT 124
 
@@ -58,6 +65,7 @@ typedef struct {
 
     uint8_t score;
     uint8_t lives;
+    int8_t death_timer;
 
     uint8_t collision_point[9];
 
@@ -87,14 +95,15 @@ typedef struct {
     uint8_t jetpack;
     uint8_t jetpack_delay;
 
-    uint16_t pbullet_px;
-    uint16_t pbullet_py;
-    int8_t pbullet_dir;
+    uint16_t bullet_px;
+    uint16_t bullet_py;
+    int8_t bullet_dir;
 } player_t;
 
 typedef struct {
     uint8_t type;
     uint8_t path_index;
+    uint8_t death_timer;
 
     uint8_t x;
     uint8_t y;

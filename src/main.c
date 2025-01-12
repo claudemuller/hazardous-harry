@@ -7,7 +7,7 @@
 
 int main(int argc, char *argv[])
 {
-    // TODO(lukefilewalker): should start off false
+    // TODO:(lukefilewalker): should start off false
     bool debug = true;
 
     if (argc > 1) {
@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    // TODO(lukefilewalker): remove this in favour of cmd args
+    // TODO:(lukefilewalker): remove this in favour of cmd args
     log_visibility(LOG_DEBUG);
 
     err_handle(game_init(debug));

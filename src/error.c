@@ -17,13 +17,13 @@ const char *err_messages[] = {
 void err_handle(const int err)
 {
     if (err != SUCCESS) {
-        // TODO(lukefilewalker): handle error types e.g. fatal etc.
+        // TODO:(lukefilewalker): handle error types e.g. fatal etc.
         fprintf(stderr, "\033[1;31m🚨 %s: %s\033[0m\n", err_messages[err], err_additional);
         exit(1);
     }
 }
 
-// TODO(lukefilewalker): make this variadic after int err
+// TODO:(lukefilewalker): make this variadic after int err
 int err_fatal(const int err, const char *msg)
 {
     if (msg) {
