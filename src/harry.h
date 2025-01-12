@@ -34,11 +34,13 @@
 #define TILE_PLAYER_STANDING 56
 #define TILE_PLAYER_JUMP_LEFT 67
 #define TILE_PLAYER_JUMP_RIGHT 68
-#define TILE_BULLET_LEFT 127
-#define TILE_BULLET_RIGHT 128
+#define TILE_PLAYER_BULLET_LEFT 127
+#define TILE_PLAYER_BULLET_RIGHT 128
 #define TILE_JETPACK_LEFT 77
 #define TILE_JETPACK_RIGHT 80
 #define TILE_MONSTER_SPIDER 89
+#define TILE_MONSTER_BULLET_LEFT 121
+#define TILE_MONSTER_BULLET_RIGHT 124
 
 #define SCORE_TROPHY 1000
 
@@ -88,14 +90,12 @@ typedef struct {
     uint16_t pbullet_px;
     uint16_t pbullet_py;
     int8_t pbullet_dir;
-    uint16_t ebullet_px;
-    uint16_t ebullet_py;
-    int8_t ebullet_dir;
 } player_t;
 
 typedef struct {
     uint8_t type;
     uint8_t path_index;
+
     uint8_t x;
     uint8_t y;
     uint16_t px;
@@ -115,9 +115,12 @@ typedef struct {
     uint8_t view_y;
     int8_t scroll_x;
 
+    level_t level[NUM_LEVELS];
     player_t player;
     monster_t monsters[NUM_MONSTERS];
-    level_t level[NUM_LEVELS];
+    uint16_t ebullet_px;
+    uint16_t ebullet_py;
+    int8_t ebullet_dir;
 } game_state_t;
 
 typedef struct {

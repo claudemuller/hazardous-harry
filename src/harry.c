@@ -14,7 +14,7 @@ static SDL_Window *window;
 static SDL_Renderer *renderer;
 static TTF_Font *font;
 
-// TODO(claude): make this better :(
+// TODO(lukefilewalker): make this better :(
 #define MAX_DEBUG_MESSAGES 20
 static uint8_t num_debug_msgs = 0;
 static char debug_msgs[MAX_DEBUG_MESSAGES][1000] = {0};
@@ -28,6 +28,7 @@ static void scroll_screen(void);
 static void update_level(void);
 static void start_level(void);
 static void update_pbullet(void);
+static void update_ebullet(void);
 static void verify_input(void);
 static void move_player(float dt);
 static void move_monsters(float dt);
@@ -38,18 +39,19 @@ static void render(void);
 static void render_world(void);
 static void render_player(void);
 static void render_monsters(void);
-// TODO(claude): combine these into render funcs?
+// TODO(lukefilewalker): combine these into render funcs?
 static void render_player_bullet(void);
 static void render_monsters_bullet(void);
 
 static void render_debug_ui(void);
 
 static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player);
+static uint8_t is_visible(uint16_t px);
 static void add_debug_msg(char *format, char *msg);
 
 int game_init(const bool debug)
 {
-    log_info("game_init", "initialising game");
+    LOG_INFO("game_init", "initialising game");
 
     FILE *fd_level;
     char fname[ASSET_FNAME_SIZE];
@@ -111,7 +113,7 @@ int game_init(const bool debug)
         return err_fatal(ERR_SDL_INIT, SDL_GetError());
     }
 
-    // TODO(claude): clean up :(
+    // TODO(lukefilewalker): clean up :(
     if (TTF_Init() == -1) {
         SDL_Log("SDL_ttf could not initialize! TTF_Error: %s", TTF_GetError());
         SDL_Quit();
@@ -124,7 +126,7 @@ int game_init(const bool debug)
 
     SDL_RenderSetScale(renderer, DISPLAY_SCALE, DISPLAY_SCALE);
 
-    // TODO(claude): clean up :(
+    // TODO(lukefilewalker): clean up :(
     font = TTF_OpenFont("/home/lukefilewalker/repos/tyler.c/assets/fonts/DroidSans.ttf", 16);
     if (!font) {
         SDL_Log("Font could not be loaded! TTF_Error: %s", TTF_GetError());
@@ -284,7 +286,7 @@ static int init_assets(void)
 
 static void check_collisions(void)
 {
-    // TODO(claude): change to is_colliding
+    // TODO(lukefilewalker): change to is_colliding
     game->player.collision_point[0] = is_clear(game->player.px + 4, game->player.py - 1, 1);
     game->player.collision_point[1] = is_clear(game->player.px + 10, game->player.py - 1, 1);
     game->player.collision_point[2] = is_clear(game->player.px + 11, game->player.py + 4, 1);
@@ -355,6 +357,7 @@ static void process_input(void)
 static void update(float dt)
 {
     update_pbullet();
+    update_ebullet();
     verify_input();
     move_player(dt);
     move_monsters(dt);
@@ -535,9 +538,9 @@ static void start_level(void)
     game->player.pbullet_px = 0;
     game->player.pbullet_py = 0;
     game->player.pbullet_dir = 0;
-    game->player.ebullet_px = 0;
-    game->player.ebullet_py = 0;
-    game->player.ebullet_dir = 0;
+    game->ebullet_px = 0;
+    game->ebullet_py = 0;
+    game->ebullet_dir = 0;
 }
 
 static void update_pbullet(void)
@@ -560,6 +563,28 @@ static void update_pbullet(void)
     // If bullet reaches the end of the screen, remove it
     if (grid_x - game->view_x < 1 || grid_x - game->view_x > 20) {
         game->player.pbullet_px = game->player.pbullet_py = 0;
+    }
+}
+
+// TODO(lukefilewalker): combine with pullet update?
+static void update_ebullet(void)
+{
+    if (!game->ebullet_px || !game->ebullet_py) {
+        return;
+    }
+
+    // If bullet hits a collidable tile, remove it
+    if (!is_clear(game->ebullet_px, game->ebullet_py, 0)) {
+        game->ebullet_px = game->ebullet_py = 0;
+    }
+
+    // If bullet reaches the end of the screen, remove it
+    if (!is_visible(game->ebullet_px)) {
+        game->ebullet_px = game->ebullet_py = 0;
+    }
+
+    if (game->ebullet_px) {
+        game->ebullet_px += game->ebullet_dir * BULLET_SPEED;
     }
 }
 
@@ -639,7 +664,7 @@ static void move_player(float dt)
             game->player.last_dir = 0;
         }
 
-        // TODO(claude): add delta time to jump
+        // TODO(lukefilewalker): add delta time to jump
         if (game->player.collision_point[0] && game->player.collision_point[1]) {
             if (game->player.jump_timer > 10) {
                 game->player.py -= PLAYER_MOVE;
@@ -692,8 +717,69 @@ static void move_player(float dt)
 
 static void move_monsters(float dt)
 {
+    for (uint8_t i = 0; i < NUM_MONSTERS; i++) {
+        monster_t *m = &game->monsters[i];
+        if (m->type) {
+            if (!m->next_px && !m->next_py) {
+                m->next_px = game->level[game->cur_level].path[m->path_index];
+                m->next_py = game->level[game->cur_level].path[m->path_index + 1];
+                m->path_index += 2;
+            }
+
+            // If end of path, reset path to beginning
+            if (m->next_px == (int8_t)0xea && m->next_py == (int8_t)0xea) {
+                m->next_px = game->level[game->cur_level].path[0];
+                m->next_py = game->level[game->cur_level].path[1];
+                m->path_index += 2;
+            }
+
+            if (m->next_px < 0) {
+                m->px -= 1;
+                m->next_px++;
+            }
+            if (m->next_px > 0) {
+                m->px += 1;
+                m->next_px--;
+            }
+
+            if (m->next_py < 0) {
+                m->py -= 1;
+                m->next_py++;
+            }
+            if (m->next_py > 0) {
+                m->py += 1;
+                m->next_py--;
+            }
+
+            m->x = m->px / TILE_SIZE;
+            m->y = m->py / TILE_SIZE;
+        }
+    }
 
     // Monsters firing
+    if (!game->ebullet_px && !game->ebullet_py) {
+        for (uint8_t i = 0; i < NUM_MONSTERS; i++) {
+            if (game->monsters[i].type && is_visible(game->monsters[i].px)) {
+                game->ebullet_dir = game->player.px < game->monsters[i].px ? -1 : 1;
+
+                // Default direction of bullet should be right
+                if (!game->ebullet_dir) {
+                    game->ebullet_dir = 1;
+                }
+
+                // Create the bullet on the appropriate side of the monster
+                if (game->ebullet_dir == 1) {
+                    game->ebullet_px = game->monsters[i].px + 18;
+                }
+                if (game->ebullet_dir == -1) {
+                    game->ebullet_px = game->monsters[i].px - 8;
+                }
+                sprintf(debug_msgs[0], "bullet px: %d", game->ebullet_px);
+
+                game->ebullet_py = game->monsters[i].py + 8;
+            }
+        }
+    }
 }
 
 static void pickup_item(uint8_t grid_x, uint8_t grid_y)
@@ -811,16 +897,29 @@ static void render_player_bullet(void)
             .w = BULLET_W,
             .h = BULLET_H,
         };
-        uint8_t tile_index = game->player.pbullet_dir > 0 ? TILE_BULLET_LEFT : TILE_BULLET_RIGHT;
+        uint8_t tile_index = game->player.pbullet_dir > 0 ? TILE_PLAYER_BULLET_LEFT : TILE_PLAYER_BULLET_RIGHT;
         SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
     }
 }
 
-static void render_monsters_bullet(void) {}
+// TODO(lukefilewalker): combine with monster render?
+static void render_monsters_bullet(void)
+{
+    if (game->ebullet_px && game->ebullet_py) {
+        SDL_Rect dest = {
+            .x = game->ebullet_px - game->view_x * TILE_SIZE,
+            .y = game->ebullet_py,
+            .w = BULLET_W,
+            .h = BULLET_H,
+        };
+        uint8_t tile_index = game->ebullet_dir > 0 ? TILE_MONSTER_BULLET_LEFT : TILE_MONSTER_BULLET_RIGHT;
+        SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
+    }
+}
 
 static void render_debug_ui(void)
 {
-    if (debug_msgs[0] == NULL || strlen(debug_msgs[0]) == 0) {
+    if (strlen(debug_msgs[0]) == 0) {
         return;
     }
 
@@ -830,7 +929,7 @@ static void render_debug_ui(void)
 
     // Create each line's surface and calculate the total height of al the lines
     for (size_t i = 0; i < num_debug_msgs; i++) {
-        if (debug_msgs[i] == NULL || strlen(debug_msgs[i]) == 0) {
+        if (strlen(debug_msgs[i]) == 0) {
             break;
         }
 
@@ -919,6 +1018,11 @@ static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player)
 
         case TILE_GUN: {
             game->player.gun = 1;
+#ifdef _MSC_VER
+            __fallthrough;
+#else
+            __attribute__((fallthrough));
+#endif
         };
         case TILE_JETPACK:
         case TILE_TROPHY:
@@ -940,9 +1044,15 @@ static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player)
     return 1;
 }
 
+static inline uint8_t is_visible(uint16_t px)
+{
+    uint8_t posx = px / TILE_SIZE;
+    return posx - game->view_x < 20 && posx - game->view_x >= 0;
+}
+
 static void add_debug_msg(char *format, char *msg)
 {
-    // TODO(claude): create a circular buffer for the messages
+    // TODO(lukefilewalker): create a circular buffer for the messages
     if (num_debug_msgs > MAX_DEBUG_MESSAGES) {
         LOG_INFO("debug messages", "we've run out of space :(");
         return;
