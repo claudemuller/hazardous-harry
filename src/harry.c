@@ -6,13 +6,18 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static game_state_t *game;
 static game_assets_t *assets;
-SDL_Window *window;
-SDL_Renderer *renderer;
-TTF_Font *font;
-char debug_text[1000] = {0};
+static SDL_Window *window;
+static SDL_Renderer *renderer;
+static TTF_Font *font;
+
+// TODO(claude): make this better :(
+#define MAX_DEBUG_MESSAGES 20
+static uint8_t num_debug_msgs = 0;
+static char debug_msgs[MAX_DEBUG_MESSAGES][1000] = {0};
 
 static int init_assets(void);
 
@@ -25,18 +30,24 @@ static void start_level(void);
 static void update_pbullet(void);
 static void verify_input(void);
 static void move_player(float dt);
+static void move_monsters(float dt);
 static void pickup_item(uint8_t, uint8_t);
 static void clear_input(void);
 
 static void render(void);
 static void render_world(void);
 static void render_player(void);
-static void render_bullet(void);
+static void render_monsters(void);
+// TODO(claude): combine these into render funcs?
+static void render_player_bullet(void);
+static void render_monsters_bullet(void);
+
 static void render_debug_ui(void);
 
 static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player);
+static void add_debug_msg(char *format, char *msg);
 
-int game_init(void)
+int game_init(const bool debug)
 {
     log_info("game_init", "initialising game");
 
@@ -49,6 +60,7 @@ int game_init(void)
         return err_fatal(ERR_ALLOC, "game state");
     }
 
+    game->debug = debug;
     game->is_running = false;
     game->ticks_last_frame = SDL_GetTicks();
     game->cur_level = 2;
@@ -62,9 +74,13 @@ int game_init(void)
     game->player.check_pickup_x = 0;
     game->player.check_pickup_y = 0;
 
+    for (int i = 0; i < NUM_MONSTERS; i++) {
+        game->monsters[i].type = 0;
+    }
+
     log_info("game_init", "loading levels");
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < NUM_LEVELS; i++) {
         fname[0] = '\0';
         strcat(fname, "res/level");
         sprintf(&file_num[0], "%u", i);
@@ -109,7 +125,7 @@ int game_init(void)
     SDL_RenderSetScale(renderer, DISPLAY_SCALE, DISPLAY_SCALE);
 
     // TODO(claude): clean up :(
-    font = TTF_OpenFont("/home/lukefilewalker/repos/tyler.c/assets/fonts/DroidSans.ttf", 10);
+    font = TTF_OpenFont("/home/lukefilewalker/repos/tyler.c/assets/fonts/DroidSans.ttf", 16);
     if (!font) {
         SDL_Log("Font could not be loaded! TTF_Error: %s", TTF_GetError());
         SDL_DestroyRenderer(renderer);
@@ -341,6 +357,7 @@ static void update(float dt)
     update_pbullet();
     verify_input();
     move_player(dt);
+    move_monsters(dt);
     scroll_screen();
     update_level();
     clear_input();
@@ -353,18 +370,21 @@ static void render(void)
 
     render_world();
     render_player();
-    render_bullet();
-    render_debug_ui();
+    render_monsters();
+    render_player_bullet();
+    render_monsters_bullet();
+
+    if (game->debug) {
+        SDL_RenderSetScale(renderer, 1, 1);
+        render_debug_ui();
+        SDL_RenderSetScale(renderer, DISPLAY_SCALE, DISPLAY_SCALE);
+    }
 
     SDL_RenderPresent(renderer);
 }
 
 static void scroll_screen(void)
 {
-    sprintf(debug_text, "player.x = %d\n", game->player.x);
-    sprintf(debug_text, "game->view_x = %d\n", game->view_x);
-    sprintf(debug_text, "player.x - game->view_x = %d", game->player.x - game->view_x);
-
     if (game->player.x - game->view_x >= 18) {
         game->scroll_x = 15;
     }
@@ -421,6 +441,8 @@ static void update_level(void)
 
 static void start_level(void)
 {
+    add_debug_msg("level: %s", "1");
+
     switch (game->cur_level) {
     case 0: {
         game->player.x = 2;
@@ -471,6 +493,31 @@ static void start_level(void)
         game->player.x = 2;
         game->player.y = 8;
     } break;
+    }
+
+    for (int i = 0; i < NUM_MONSTERS; i++) {
+        game->monsters[i].type = 0;
+    }
+
+    switch (game->cur_level) {
+    case 2: {
+        game->monsters[0].type = TILE_MONSTER_SPIDER;
+        game->monsters[0].path_index = 0;
+        game->monsters[0].px = 44 * TILE_SIZE;
+        game->monsters[0].py = 4 * TILE_SIZE;
+        game->monsters[0].next_px = 0;
+        game->monsters[0].next_py = 0;
+
+        game->monsters[1].type = TILE_MONSTER_SPIDER;
+        game->monsters[1].path_index = 0;
+        game->monsters[1].px = 59 * TILE_SIZE;
+        game->monsters[1].py = 4 * TILE_SIZE;
+        game->monsters[1].next_px = 0;
+        game->monsters[1].next_py = 0;
+    } break;
+
+    default:
+        break;
     }
 
     game->player.px = game->player.x * TILE_SIZE;
@@ -643,6 +690,12 @@ static void move_player(float dt)
     }
 }
 
+static void move_monsters(float dt)
+{
+
+    // Monsters firing
+}
+
 static void pickup_item(uint8_t grid_x, uint8_t grid_y)
 {
     if (!grid_x || !grid_y) {
@@ -730,7 +783,26 @@ static void render_player(void)
     SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
 }
 
-static void render_bullet(void)
+static void render_monsters(void)
+{
+    for (int i = 0; i < NUM_MONSTERS; i++) {
+        monster_t *m = &game->monsters[i];
+        uint8_t tile_index = m->type;
+
+        if (m->type) {
+            SDL_Rect dest = {
+                .x = m->px - game->view_x * TILE_SIZE,
+                .y = m->py,
+                .w = PLAYER_W,
+                .h = PLAYER_H,
+            };
+
+            SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
+        }
+    }
+}
+
+static void render_player_bullet(void)
 {
     if (game->player.pbullet_px && game->player.pbullet_py) {
         SDL_Rect dest = {
@@ -744,26 +816,70 @@ static void render_bullet(void)
     }
 }
 
+static void render_monsters_bullet(void) {}
+
 static void render_debug_ui(void)
 {
-    SDL_Color textColor = {255, 255, 255, 255}; // White color
-    SDL_Surface *surface = TTF_RenderText_Solid(font, debug_text, textColor);
-    if (!surface) {
-        SDL_Log("Unable to create text surface! TTF_Error: %s", TTF_GetError());
+    if (debug_msgs[0] == NULL || strlen(debug_msgs[0]) == 0) {
         return;
     }
 
-    // Create texture from surface
-    SDL_Texture *textTexture = SDL_CreateTextureFromSurface(renderer, surface);
-    if (!textTexture) {
+    SDL_Color text_colour = {255, 255, 255, 255};
+    SDL_Surface *line_surfaces[MAX_DEBUG_MESSAGES] = {0};
+    uint16_t tot_height = 0, longest_line = 0;
+
+    // Create each line's surface and calculate the total height of al the lines
+    for (size_t i = 0; i < num_debug_msgs; i++) {
+        if (debug_msgs[i] == NULL || strlen(debug_msgs[i]) == 0) {
+            break;
+        }
+
+        line_surfaces[i] = TTF_RenderText_Solid(font, debug_msgs[i], text_colour);
+        if (!line_surfaces[i]) {
+            SDL_Log("Unable to create debug line surface! TTF_Error: %s", TTF_GetError());
+            return;
+        }
+
+        tot_height += line_surfaces[i]->h;
+        if (line_surfaces[i]->w > longest_line) {
+            longest_line = line_surfaces[i]->w;
+        }
+    }
+
+    // Create the final destination surface
+    SDL_Surface *final_surface =
+        SDL_CreateRGBSurfaceWithFormat(0, longest_line, tot_height, 32, SDL_PIXELFORMAT_RGBA32);
+    if (!final_surface) {
+        SDL_Log("Unable to create final debug surface! SDL_Error: %s", SDL_GetError());
+        return;
+    }
+
+    SDL_FillRect(final_surface, NULL, SDL_MapRGBA(final_surface->format, 0, 0, 0, (uint8_t)(255 * 0.75)));
+
+    // Copy each line surface to the destination
+    for (size_t i = 0; i < num_debug_msgs; i++) {
+        SDL_Rect destRect = {0, line_surfaces[i]->h * i, line_surfaces[i]->w, line_surfaces[i]->h};
+        SDL_BlitSurface(line_surfaces[i], NULL, final_surface, &destRect);
+        SDL_FreeSurface(line_surfaces[i]);
+    }
+
+    // Create final texture
+    SDL_Texture *debug_texture = SDL_CreateTextureFromSurface(renderer, final_surface);
+    if (!debug_texture) {
         SDL_Log("Unable to create texture from surface! SDL_Error: %s", SDL_GetError());
         return;
     }
 
-    SDL_FreeSurface(surface);
+    SDL_Rect renderQuad = {5, 5, final_surface->w, tot_height};
+    SDL_FreeSurface(final_surface);
 
-    SDL_Rect renderQuad = {5, 5, surface->w, surface->h};
-    SDL_RenderCopy(renderer, textTexture, NULL, &renderQuad);
+    // Draw background
+    // SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    // SDL_RenderFillRect(renderer, &renderQuad);
+
+    SDL_RenderCopy(renderer, debug_texture, NULL, &renderQuad);
+
+    SDL_DestroyTexture(debug_texture);
 }
 
 static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player)
@@ -822,4 +938,14 @@ static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player)
     }
 
     return 1;
+}
+
+static void add_debug_msg(char *format, char *msg)
+{
+    // TODO(claude): create a circular buffer for the messages
+    if (num_debug_msgs > MAX_DEBUG_MESSAGES) {
+        LOG_INFO("debug messages", "we've run out of space :(");
+        return;
+    }
+    sprintf(debug_msgs[num_debug_msgs++], format, msg);
 }

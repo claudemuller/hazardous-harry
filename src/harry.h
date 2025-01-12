@@ -5,10 +5,16 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define FPS 30
+#define FRAME_TIME_LEN (1000.0 / FPS)
+
+#define DISPLAY_SCALE 3
 #define ASSET_FNAME_SIZE 16
 
 #define TILE_SIZE 16
 #define NUM_TILES 158
+#define NUM_LEVELS 10
+#define NUM_MONSTERS 5
 
 #define PLAYER_W 20
 #define PLAYER_H 16
@@ -18,10 +24,6 @@
 #define BULLET_SPEED 4
 #define BULLET_W 12
 #define BULLET_H 3
-
-#define FPS 30
-#define FRAME_TIME_LEN (1000.0 / FPS)
-#define DISPLAY_SCALE 3
 
 #define COLOUR_WHITE 0xff
 
@@ -36,6 +38,7 @@
 #define TILE_BULLET_RIGHT 128
 #define TILE_JETPACK_LEFT 77
 #define TILE_JETPACK_RIGHT 80
+#define TILE_MONSTER_SPIDER 89
 
 #define SCORE_TROPHY 1000
 
@@ -91,6 +94,18 @@ typedef struct {
 } player_t;
 
 typedef struct {
+    uint8_t type;
+    uint8_t path_index;
+    uint8_t x;
+    uint8_t y;
+    uint16_t px;
+    uint16_t py;
+    int8_t next_px;
+    int8_t next_py;
+} monster_t;
+
+typedef struct {
+    bool debug;
     bool is_running;
     uint32_t ticks_last_frame;
     uint32_t delay;
@@ -101,14 +116,15 @@ typedef struct {
     int8_t scroll_x;
 
     player_t player;
-    level_t level[10];
+    monster_t monsters[NUM_MONSTERS];
+    level_t level[NUM_LEVELS];
 } game_state_t;
 
 typedef struct {
     SDL_Texture *gfx_tiles[NUM_TILES];
 } game_assets_t;
 
-int game_init(void);
+int game_init(const bool debug);
 int game_run(void);
 int game_destroy(void);
 
