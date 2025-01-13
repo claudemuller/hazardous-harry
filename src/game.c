@@ -1,4 +1,4 @@
-#include "harry.h"
+#include "game.h"
 #include "SDL_render.h"
 #include "error.h"
 #include "log.h"
@@ -102,7 +102,7 @@ int game_init(const bool debug)
         game->enemys[i].type = 0;
     }
 
-    log_info("game_init", "loading levels");
+    LOG_INFO("game_init", "loading levels");
 
     for (int i = 0; i < NUM_LEVELS; i++) {
         fname[0] = '\0';
@@ -129,7 +129,7 @@ int game_init(const bool debug)
         fclose(fd_level);
     }
 
-    log_info("game_init", "initialising SDL");
+    LOG_INFO("game_init", "initialising SDL");
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         return err_fatal(ERR_SDL_INIT, SDL_GetError());
@@ -159,7 +159,7 @@ int game_init(const bool debug)
         return 1;
     }
 
-    log_info("game_init", "malloc'ing assets");
+    LOG_INFO("game_init", "malloc'ing assets");
 
     assets = malloc(sizeof(game_assets_t));
     if (!assets) {
@@ -177,7 +177,7 @@ int game_init(const bool debug)
 
 int game_run(void)
 {
-    log_info("game_run", "running game");
+    LOG_INFO("game_run", "running game");
 
     uint32_t timer_start = 0, timer_end = 0, delay = 0;
 
@@ -221,7 +221,7 @@ int game_run(void)
 
 int game_destroy(void)
 {
-    log_info("game_destroy", "cleaning up");
+    LOG_INFO("game_destroy", "cleaning up");
 
     free(assets);
     SDL_DestroyRenderer(renderer);
@@ -234,7 +234,7 @@ int game_destroy(void)
 
 static int init_assets(void)
 {
-    log_info("init_assets", "entered");
+    LOG_INFO("init_assets", "entered");
 
     char fname[ASSET_FNAME_SIZE];
     char file_num[4];

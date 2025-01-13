@@ -41,7 +41,7 @@ extract-levels: bin-dir res-dir
 	./bin/tx
 
 run: build
-	@$(BIN) $(ARGS)
+	@$(BIN) --debug $(ARGS)
 
 memcheck:
 	@$(CC) -g $(SRC) $(ASANFLAGS) $(CFLAGS) $(INCS) $(LIBS) $(LFLAGS) -o memcheck.out

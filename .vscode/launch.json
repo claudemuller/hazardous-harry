@@ -5,6 +5,7 @@
 			"type": "codelldb",
 			"request": "launch",
 			"name": "Debug",
+			"preLaunchTaskDap": "make debug-build",
 			"preLaunchTask": "compile",
 			"postDebugTask": "clean",
 			"expressions": "native",

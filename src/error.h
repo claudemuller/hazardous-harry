@@ -1,5 +1,5 @@
-#ifndef ERROR_H
-#define ERROR_H
+#ifndef HH_ERROR_H
+#define HH_ERROR_H
 
 enum {
     SUCCESS,
@@ -16,4 +16,4 @@ extern const char *err_messages[];
 void err_handle(const int);
 int err_fatal(const int, const char *);
 
-#endif // !ERROR_H
+#endif // !HH_ERROR_H

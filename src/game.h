@@ -1,5 +1,5 @@
-#ifndef HARRY_H
-#define HARRY_H
+#ifndef HH_GAME_H
+#define HH_GAME_H
 
 #include <SDL2/SDL.h>
 #include <stdbool.h>
@@ -160,4 +160,4 @@ int game_init(const bool debug);
 int game_run(void);
 int game_destroy(void);
 
-#endif // !HARRY_H
+#endif // !HH_GAME_H

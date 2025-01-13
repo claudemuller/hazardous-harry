@@ -8,9 +8,6 @@
 			"args": [
 				"debug-build"
 			],
-			"env": {
-				"PLATFORM": "sdl"
-			},
 			"group": {
 				"kind": "build",
 				"isDefault": true
@@ -19,25 +16,6 @@
 				"$gcc"
 			],
 			"detail": "Compiles the project and outputs to /bin."
-		},
-		{
-			"label": "compile-tiles",
-			"type": "shell",
-			"command": "make",
-			"args": [
-				"debug-tiles"
-			],
-			"env": {
-				"PLATFORM": "sdl"
-			},
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			},
-			"problemMatcher": [
-				"$gcc"
-			],
-			"detail": "Compiles TILES.c and outputs to /bin."
 		},
 		{
 			"label": "clean",
