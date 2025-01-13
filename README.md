@@ -5,6 +5,11 @@ A Dangerous Dave clone in C and SDL.
 ## Table of Contents
 
 1. [Requirements](#requirements)
+2. [Using Dangerous Dave Assets](#using-dangerous-dave-assets)
+3. [Building](#building)
+4. [Running](#running)
+5. [Cleaning the Project](#cleaning-the-project)
+6. [Generate Compilation Database](#generate-compilation-database)
 
 ## Requirements
 
@@ -34,19 +39,19 @@ make extract-levels
 make build
 ```
 
+### Building a Debug Binary
+
+```bash
+make debug-build
+```
+
 ## Running
 
 ```bash
 make run
 ```
 
-## Build a Debug Binary
-
-```bash
-make debug-build
-```
-
-## Start `lldb` or `gdb` With Debug Binary
+### Debugging with `lldb` or `gdb`
 
 ```bash
 make debug
@@ -58,7 +63,9 @@ make debug
 make clean
 ```
 
-## Generate Compilation Database (for auto-completion)
+## Generate Compilation Database
+
+This is for code completion in some editors like Neovim+nvim-cmp.
 
 ```bash
 make gen-compilation-db
