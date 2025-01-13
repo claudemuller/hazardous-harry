@@ -14,7 +14,7 @@
 
 #define NUM_TILES 158
 #define NUM_LEVELS 10
-#define NUM_enemyS 5
+#define NUM_ENEMYS 5
 #define NUM_START_LIVES 3
 
 #define DEATH_TIME 30
@@ -46,7 +46,8 @@
 #define TILE_JETPACK 4
 #define TILE_TROPHY 10
 #define TILE_GUN 20
-#define TILE_DEATH 129;
+#define TILE_DEATH 129
+#define TILE_UI_LIFE 143
 
 #define TILE_PLAYER_STANDING 56
 #define TILE_PLAYER_JUMP_LEFT 67
@@ -60,6 +61,11 @@
 #define TILE_ENEMY_PURPER 93
 #define TILE_ENEMY_BULLET_LEFT 121
 #define TILE_ENEMY_BULLET_RIGHT 124
+
+#define TILE_UI_SCORE 137
+#define TILE_UI_LEVEL 136
+#define TILE_UI_LIVES 135
+#define TILE_UI_NUM_0 148
 
 #define SCORE_TROPHY 1000
 
@@ -75,7 +81,7 @@ typedef struct {
     uint16_t px;
     uint16_t py;
 
-    uint8_t score;
+    uint32_t score;
     uint8_t lives;
     int8_t death_timer;
     int8_t tick;
@@ -140,7 +146,7 @@ typedef struct {
 
     level_t level[NUM_LEVELS];
     player_t player;
-    enemy_t enemys[NUM_enemyS];
+    enemy_t enemys[NUM_ENEMYS];
     uint16_t ebullet_px;
     uint16_t ebullet_py;
     int8_t ebullet_dir;

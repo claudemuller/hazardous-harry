@@ -1,9 +1,7 @@
 #include "harry.h"
-#include "SDL_pixels.h"
-#include "SDL_surface.h"
+#include "SDL_render.h"
 #include "error.h"
 #include "log.h"
-#include "utils.h"
 #include <SDL2/SDL_ttf.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -11,16 +9,25 @@
 #include <stdlib.h>
 #include <string.h>
 
-static game_state_t *game = {0};
-static game_assets_t *assets = {0};
+// TODO:(lukefilewalker) General TODOs
+// - look at naming of things e.g. trophy -> has_trophy
+// - look at combining or splitting up func names to make more succinct as well as readible
+// - make sure func names are clear
+
+// BUG:(lukefilewalker) animation frames of player seem to be wrong sometimes
+// BUG:(lukefilewalker) collision doesn't always work very well e.g. player gets stuck on walls sometimes
+// BUG:(lukefilewalker) jetpack doesn't count down
+
+static game_state_t *game;
+static game_assets_t *assets;
 static SDL_Window *window;
 static SDL_Renderer *renderer;
 static TTF_Font *font;
 
-// TODO:(lukefilewalker): make this better :(
+// TODO:(lukefilewalker): make this better :( i.e. game debug funcs or encapsulate this or something
 #define MAX_DEBUG_MESSAGES 20
-static uint8_t num_debug_msgs = 0;
-static char debug_msgs[MAX_DEBUG_MESSAGES][1000] = {0};
+static uint8_t num_debug_msgs;
+static char debug_msgs[MAX_DEBUG_MESSAGES][1000];
 
 static int init_assets(void);
 
@@ -47,6 +54,7 @@ static void render_enemys(void);
 // TODO:(lukefilewalker) combine these into render funcs?
 static void render_player_bullet(void);
 static void render_enemys_bullet(void);
+static void render_ui(void);
 static void render_debug_ui(void);
 
 static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player);
@@ -57,6 +65,9 @@ int game_init(const bool debug)
 {
     LOG_INFO("game_init", "initialising game");
 
+    char *version = "0.1.0";
+    add_debug_msg("version: %s", version);
+
     FILE *fd_level;
     char fname[ASSET_FNAME_SIZE];
     char file_num[4];
@@ -65,26 +76,29 @@ int game_init(const bool debug)
     if (!game) {
         return err_fatal(ERR_ALLOC, "game state");
     }
+    memset(game, 0, sizeof(game_state_t));
 
     game->debug = debug;
     game->is_running = false;
     game->ticks_last_frame = SDL_GetTicks();
-    game->cur_level = LEVEL_4;
+    game->cur_level = LEVEL_3;
     // TODO:(lukefilewalker): remove this init code when you've confirmed that game data is init'd to 0
-    game->scroll_x = 0;
-    game->tick = 0;
+    // game->scroll_x = 0;
+    // game->tick = 0;
 
     game->player.on_ground = 1;
     game->player.lives = NUM_START_LIVES;
     // TODO:(lukefilewalker): remove this init code when you've confirmed that player is init'd to 0
-    game->player.try_right = 0;
-    game->player.try_left = 0;
-    game->player.try_jump = 0;
-    game->player.try_jetpack = 0;
-    game->player.check_pickup_x = 0;
-    game->player.check_pickup_y = 0;
+    // game->player.try_right = 0;
+    // game->player.try_left = 0;
+    // game->player.try_jump = 0;
+    // game->player.try_jetpack = 0;
+    // game->player.check_pickup_x = 0;
+    // game->player.check_pickup_y = 0;
 
-    for (int i = 0; i < NUM_enemyS; i++) {
+    // TODO:(lukefilewalker) remove cos you're memsetting
+    for (int i = 0; i < NUM_ENEMYS; i++) {
+        // TODO:(lukefilewalker) also, spell much? enemys?
         game->enemys[i].type = 0;
     }
 
@@ -134,7 +148,7 @@ int game_init(const bool debug)
 
     SDL_RenderSetScale(renderer, DISPLAY_SCALE, DISPLAY_SCALE);
 
-    // TODO:(lukefilewalker): clean up :(
+    // TODO:(lukefilewalker): clean up :( and add a font into game assets or something
     font = TTF_OpenFont("/home/lukefilewalker/repos/tyler.c/assets/fonts/DroidSans.ttf", 16);
     if (!font) {
         SDL_Log("Font could not be loaded! TTF_Error: %s", TTF_GetError());
@@ -388,6 +402,7 @@ static void render(void)
     render_enemys();
     render_player_bullet();
     render_enemys_bullet();
+    render_ui();
 
     if (game->debug) {
         SDL_RenderSetScale(renderer, 1, 1);
@@ -470,7 +485,7 @@ static void update_level(void)
         }
     }
 
-    for (size_t i = 0; i < NUM_enemyS; i++) {
+    for (size_t i = 0; i < NUM_ENEMYS; i++) {
         if (game->enemys[i].death_timer) {
             game->enemys[i].death_timer--;
             // enemy has died
@@ -491,13 +506,9 @@ static void update_level(void)
 
 static void start_level(void)
 {
-    char level_str;
-    itoa(game->cur_level + 1, &level_str, 10);
-    add_debug_msg("level: %s", &level_str);
-
     restart_level();
 
-    for (int i = 0; i < NUM_enemyS; i++) {
+    for (int i = 0; i < NUM_ENEMYS; i++) {
         game->enemys[i].type = 0;
     }
 
@@ -636,7 +647,7 @@ static void update_pbullet(void)
     if (game->player.bullet_px) {
         game->player.bullet_px += game->player.bullet_dir * BULLET_SPEED;
 
-        for (size_t i = 0; i < NUM_enemyS; i++) {
+        for (size_t i = 0; i < NUM_ENEMYS; i++) {
             if (game->enemys[i].type) {
                 uint8_t mx = game->enemys[i].x;
                 uint8_t my = game->enemys[i].y;
@@ -818,7 +829,7 @@ static void move_player(float dt)
 
 static void move_enemys(float dt)
 {
-    for (uint8_t i = 0; i < NUM_enemyS; i++) {
+    for (uint8_t i = 0; i < NUM_ENEMYS; i++) {
         enemy_t *m = &game->enemys[i];
         if (m->type && !m->death_timer) {
             if (!m->next_px && !m->next_py) {
@@ -859,7 +870,7 @@ static void move_enemys(float dt)
 
     // enemys firing
     if (!game->ebullet_px && !game->ebullet_py) {
-        for (uint8_t i = 0; i < NUM_enemyS; i++) {
+        for (uint8_t i = 0; i < NUM_ENEMYS; i++) {
             if (game->enemys[i].type && is_visible(game->enemys[i].px) && !game->enemys[i].death_timer) {
                 game->ebullet_dir = game->player.px < game->enemys[i].px ? -1 : 1;
 
@@ -907,6 +918,31 @@ static void pickup_item(uint8_t grid_x, uint8_t grid_y)
 
     case TILE_GUN: {
         game->player.gun = 1;
+    } break;
+
+    // TODO:(lukefilewalker) pull these magic nums out
+    case 47: {
+        game->player.score += 100;
+    } break;
+
+    case 48: {
+        game->player.score += 100;
+    } break;
+
+    case 49: {
+        game->player.score += 100;
+
+    } break;
+    case 50: {
+        game->player.score += 100;
+    } break;
+
+    case 51: {
+        game->player.score += 100;
+    } break;
+
+    case 52: {
+        game->player.score += 100;
     } break;
 
     default:
@@ -971,7 +1007,8 @@ static void render_world(void)
     };
 
     for (int i = 0; i < 10; i++) {
-        dest.y = i * TILE_SIZE;
+        // Move everything down a tile for the UI
+        dest.y = TILE_SIZE + i * TILE_SIZE;
 
         for (int j = 0; j < 20; j++) {
             dest.x = j * TILE_SIZE;
@@ -987,7 +1024,8 @@ static void render_player(void)
 {
     SDL_Rect dest = {
         .x = game->player.px - game->view_x * TILE_SIZE,
-        .y = game->player.py,
+        // Move player down a tile for the UI
+        .y = TILE_SIZE + game->player.py,
         .w = PLAYER_W,
         .h = PLAYER_H,
     };
@@ -1017,7 +1055,7 @@ static void render_player(void)
 
 static void render_enemys(void)
 {
-    for (int i = 0; i < NUM_enemyS; i++) {
+    for (int i = 0; i < NUM_ENEMYS; i++) {
         enemy_t *m = &game->enemys[i];
         // TODO:(lukefilewalker) figure out whats going on with this magic num
         uint8_t tile_index = m->death_timer ? 129 : m->type;
@@ -1026,7 +1064,8 @@ static void render_enemys(void)
         if (m->type) {
             SDL_Rect dest = {
                 .x = m->px - game->view_x * TILE_SIZE,
-                .y = m->py,
+                // Move player down a tile for the UI
+                .y = TILE_SIZE + m->py,
                 .w = PLAYER_W,
                 .h = PLAYER_H,
             };
@@ -1041,7 +1080,8 @@ static void render_player_bullet(void)
     if (game->player.bullet_px && game->player.bullet_py) {
         SDL_Rect dest = {
             .x = game->player.bullet_px - game->view_x * TILE_SIZE,
-            .y = game->player.bullet_py,
+            // Move player down a tile for the UI
+            .y = TILE_SIZE + game->player.bullet_py,
             .w = BULLET_W,
             .h = BULLET_H,
         };
@@ -1056,12 +1096,106 @@ static void render_enemys_bullet(void)
     if (game->ebullet_px && game->ebullet_py) {
         SDL_Rect dest = {
             .x = game->ebullet_px - game->view_x * TILE_SIZE,
-            .y = game->ebullet_py,
+            // Move player down a tile for the UI
+            .y = TILE_SIZE + game->ebullet_py,
             .w = BULLET_W,
             .h = BULLET_H,
         };
         uint8_t tile_index = game->ebullet_dir > 0 ? TILE_ENEMY_BULLET_LEFT : TILE_ENEMY_BULLET_RIGHT;
         SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
+    }
+}
+
+// TODO:(lukefilewalker) pull out co-ords for items into some atlas or map or something
+static void render_ui(void)
+{
+    // Draw UI frame
+    SDL_Rect dest = {.x = 0, .y = 16, .w = 960, .h = 1};
+    SDL_SetRenderDrawColor(renderer, COLOUR_WHITE, COLOUR_WHITE, COLOUR_WHITE, COLOUR_WHITE);
+    SDL_RenderFillRect(renderer, &dest);
+    dest.y = 176;
+    SDL_RenderFillRect(renderer, &dest);
+
+    // Score label
+    dest.x = 1;
+    dest.y = 2;
+    dest.w = 62;
+    dest.h = 11;
+    SDL_RenderCopy(renderer, assets->gfx_tiles[TILE_UI_SCORE], NULL, &dest);
+
+    // Level
+    dest.x = 120;
+    SDL_RenderCopy(renderer, assets->gfx_tiles[TILE_UI_LEVEL], NULL, &dest);
+
+    // Lives
+    dest.x = 200;
+    SDL_RenderCopy(renderer, assets->gfx_tiles[TILE_UI_LIVES], NULL, &dest);
+
+    // Player score
+    dest.x = 64;
+    dest.w = 8;
+    dest.h = 11;
+    SDL_RenderCopy(renderer, assets->gfx_tiles[TILE_UI_NUM_0 + (game->player.score / 10000) % 10], NULL, &dest);
+    dest.x = 72;
+    SDL_RenderCopy(renderer, assets->gfx_tiles[TILE_UI_NUM_0 + (game->player.score / 1000) % 10], NULL, &dest);
+    dest.x = 80;
+    SDL_RenderCopy(renderer, assets->gfx_tiles[TILE_UI_NUM_0 + (game->player.score / 100) % 10], NULL, &dest);
+    dest.x = 88;
+    SDL_RenderCopy(renderer, assets->gfx_tiles[TILE_UI_NUM_0 + (game->player.score / 10) % 10], NULL, &dest);
+    dest.x = 96;
+    SDL_RenderCopy(renderer, assets->gfx_tiles[TILE_UI_NUM_0 + (game->player.score) % 10], NULL, &dest);
+
+    // Current level
+    dest.x = 170;
+    SDL_RenderCopy(renderer, assets->gfx_tiles[TILE_UI_NUM_0 + (game->cur_level + 1) / 10], NULL, &dest);
+    dest.x = 178;
+    SDL_RenderCopy(renderer, assets->gfx_tiles[TILE_UI_NUM_0 + (game->cur_level + 1) % 10], NULL, &dest);
+
+    // Player lives
+    for (int i = 0; i < game->player.lives; i++) {
+        dest.x = (255 + 16 * i);
+        dest.w = 16;
+        dest.h = 12;
+        SDL_RenderCopy(renderer, assets->gfx_tiles[TILE_UI_LIFE], NULL, &dest);
+    }
+
+    // Trophy icon
+    if (game->player.trophy) {
+        dest.x = 72;
+        dest.y = 180;
+        dest.w = 176;
+        dest.h = 14;
+        SDL_RenderCopy(renderer, assets->gfx_tiles[138], NULL, &dest);
+    }
+
+    // Gun icon
+    if (game->player.gun) {
+        dest.x = 255;
+        dest.y = 180;
+        dest.w = 62;
+        dest.h = 11;
+        SDL_RenderCopy(renderer, assets->gfx_tiles[134], NULL, &dest);
+    }
+
+    // Jetpack
+    if (game->player.jetpack) {
+        dest.x = 1;
+        dest.y = 177;
+        dest.w = 62;
+        dest.h = 11;
+        SDL_RenderCopy(renderer, assets->gfx_tiles[133], NULL, &dest);
+
+        dest.x = 1;
+        dest.y = 190;
+        dest.h = 8;
+        SDL_RenderCopy(renderer, assets->gfx_tiles[141], NULL, &dest);
+
+        dest.x = 2;
+        dest.y = 192;
+        dest.w = game->player.jetpack * 0.23;
+        dest.h = 4;
+        SDL_SetRenderDrawColor(renderer, 0xee, COLOUR_BLACK, COLOUR_BLACK, COLOUR_WHITE);
+        SDL_RenderFillRect(renderer, &dest);
     }
 }
 
