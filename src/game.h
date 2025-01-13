@@ -11,11 +11,17 @@
 #define DISPLAY_SCALE 3
 #define ASSET_FNAME_SIZE 16
 #define TILE_SIZE 16
+#define GAME_AREA_TOP 100
+#define GAME_AREA_BOTTOM 10
 
 #define NUM_TILES 158
 #define NUM_LEVELS 10
-#define NUM_ENEMYS 5
+#define NUM_ENEMIES 5
 #define NUM_START_LIVES 3
+
+#define SCORE_NEW_LIFE 20000
+#define SCORE_LEVEL_COMPLETION 2000
+#define SCORE_ENEMY_KILL 300
 
 #define DEATH_TIME 30
 
@@ -48,6 +54,10 @@
 #define TILE_GUN 20
 #define TILE_DEATH 129
 #define TILE_UI_LIFE 143
+#define TILE_TREE_1 33
+#define TILE_TREE_2 34
+#define TILE_TREE_3 35
+#define TILE_STAR 41
 
 #define TILE_PLAYER_STANDING 56
 #define TILE_PLAYER_JUMP_LEFT 67
@@ -76,10 +86,10 @@ typedef struct {
 } level_t;
 
 typedef struct {
-    uint8_t x;
-    uint8_t y;
-    uint16_t px;
-    uint16_t py;
+    int8_t x;
+    int8_t y;
+    int16_t px;
+    int16_t py;
 
     uint32_t score;
     uint8_t lives;
@@ -92,6 +102,7 @@ typedef struct {
     uint8_t try_left;
     uint8_t try_down;
     uint8_t try_jump;
+    uint8_t try_up;
     uint8_t try_fire;
     uint8_t try_jetpack;
 
@@ -99,6 +110,7 @@ typedef struct {
     uint8_t left;
     uint8_t up;
     uint8_t down;
+    uint8_t climb;
     uint8_t jump;
     uint8_t jump_timer;
     uint8_t fire;
@@ -109,6 +121,7 @@ typedef struct {
     uint8_t check_pickup_x;
     uint8_t check_pickup_y;
     uint8_t check_door;
+    uint8_t can_climb;
     uint8_t trophy;
     uint8_t gun;
     uint8_t jetpack;
@@ -146,7 +159,7 @@ typedef struct {
 
     level_t level[NUM_LEVELS];
     player_t player;
-    enemy_t enemys[NUM_ENEMYS];
+    enemy_t enemies[NUM_ENEMIES];
     uint16_t ebullet_px;
     uint16_t ebullet_py;
     int8_t ebullet_dir;

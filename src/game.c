@@ -42,18 +42,19 @@ static void update_pbullet(void);
 static void update_ebullet(void);
 static void verify_input(void);
 static void move_player(float dt);
-static void move_enemys(float dt);
+static void move_enemies(float dt);
 static void pickup_item(uint8_t, uint8_t);
+static void add_score(uint16_t new_score);
 static void clear_input(void);
 static uint8_t update_frame(uint8_t tile, uint8_t salt);
 
 static void render(void);
 static void render_world(void);
 static void render_player(void);
-static void render_enemys(void);
+static void render_enemies(void);
 // TODO:(lukefilewalker) combine these into render funcs?
 static void render_player_bullet(void);
-static void render_enemys_bullet(void);
+static void render_enemies_bullet(void);
 static void render_ui(void);
 static void render_debug_ui(void);
 
@@ -81,7 +82,7 @@ int game_init(const bool debug)
     game->debug = debug;
     game->is_running = false;
     game->ticks_last_frame = SDL_GetTicks();
-    game->cur_level = LEVEL_3;
+    game->cur_level = LEVEL_1;
     // TODO:(lukefilewalker): remove this init code when you've confirmed that game data is init'd to 0
     // game->scroll_x = 0;
     // game->tick = 0;
@@ -97,9 +98,9 @@ int game_init(const bool debug)
     // game->player.check_pickup_y = 0;
 
     // TODO:(lukefilewalker) remove cos you're memsetting
-    for (int i = 0; i < NUM_ENEMYS; i++) {
-        // TODO:(lukefilewalker) also, spell much? enemys?
-        game->enemys[i].type = 0;
+    for (int i = 0; i < NUM_ENEMIES; i++) {
+        // TODO:(lukefilewalker) also, spell much? enemies?
+        game->enemies[i].type = 0;
     }
 
     LOG_INFO("game_init", "loading levels");
@@ -321,7 +322,25 @@ static void check_collisions(void)
     game->player.collision_point[5] = is_clear(game->player.px + 4, game->player.py + 16, 1);
     game->player.collision_point[6] = is_clear(game->player.px + 3, game->player.py + 12, 1);
     game->player.collision_point[7] = is_clear(game->player.px + 3, game->player.py + 4, 1);
-    game->player.on_ground = !game->player.collision_point[4] && !game->player.collision_point[5];
+    game->player.on_ground =
+        ((!game->player.collision_point[4] && !game->player.collision_point[5]) || game->player.climb);
+
+    uint8_t grid_x = (game->player.px + 6) / TILE_SIZE;
+    uint8_t grid_y = (game->player.py + 8) / TILE_SIZE;
+    uint8_t type;
+
+    if (grid_x < 100 && grid_y < 10) {
+        type = game->level[game->cur_level].tiles[grid_y * 100 + grid_x];
+    } else {
+        type = 0;
+    }
+
+    if ((type >= TILE_TREE_1 && type <= TILE_TREE_3) || type == TILE_STAR) {
+        game->player.can_climb = 1;
+    } else {
+        game->player.can_climb = 0;
+        game->player.climb = 0;
+    }
 }
 
 static void process_input(void)
@@ -334,6 +353,9 @@ static void process_input(void)
     }
     if (keystate[SDL_SCANCODE_LEFT]) {
         game->player.try_left = 1;
+    }
+    if (keystate[SDL_SCANCODE_UP]) {
+        game->player.try_up = 1;
     }
     if (keystate[SDL_SCANCODE_SPACE]) {
         game->player.try_jump = 1;
@@ -386,7 +408,7 @@ static void update(float dt)
     update_ebullet();
     verify_input();
     move_player(dt);
-    move_enemys(dt);
+    move_enemies(dt);
     scroll_screen();
     update_level();
     clear_input();
@@ -399,9 +421,9 @@ static void render(void)
 
     render_world();
     render_player();
-    render_enemys();
+    render_enemies();
     render_player_bullet();
-    render_enemys_bullet();
+    render_enemies_bullet();
     render_ui();
 
     if (game->debug) {
@@ -445,7 +467,7 @@ static void update_level(void)
     game->tick++;
 
     if (game->player.jetpack_delay) {
-        game->player.jetpack_delay--;
+        // game->player.jetpack_delay--;
     }
 
     // Jetpacks burn fuel when in use
@@ -458,6 +480,8 @@ static void update_level(void)
 
     if (game->player.check_door) {
         if (game->player.trophy) {
+            add_score(SCORE_LEVEL_COMPLETION);
+
             if (game->cur_level < 9) {
                 game->cur_level++;
                 start_level();
@@ -485,19 +509,19 @@ static void update_level(void)
         }
     }
 
-    for (size_t i = 0; i < NUM_ENEMYS; i++) {
-        if (game->enemys[i].death_timer) {
-            game->enemys[i].death_timer--;
-            // enemy has died
-            if (!game->enemys[i].death_timer) {
-                game->enemys[i].type = 0;
+    for (size_t i = 0; i < NUM_ENEMIES; i++) {
+        if (game->enemies[i].death_timer) {
+            game->enemies[i].death_timer--;
+            // Enemy has died
+            if (!game->enemies[i].death_timer) {
+                game->enemies[i].type = 0;
             }
         } else {
-            if (game->enemys[i].type) {
+            if (game->enemies[i].type) {
                 // If player and enemy collide, everyone dies
-                if (game->enemys[i].x == game->player.x && game->enemys[i].y == game->player.y) {
+                if (game->enemies[i].x == game->player.x && game->enemies[i].y == game->player.y) {
                     game->player.death_timer = DEATH_TIME;
-                    game->enemys[i].death_timer = DEATH_TIME;
+                    game->enemies[i].death_timer = DEATH_TIME;
                 }
             }
         }
@@ -508,37 +532,102 @@ static void start_level(void)
 {
     restart_level();
 
-    for (int i = 0; i < NUM_ENEMYS; i++) {
-        game->enemys[i].type = 0;
+    for (int i = 0; i < NUM_ENEMIES; i++) {
+        game->enemies[i].type = 0;
     }
 
     switch (game->cur_level) {
-    case 2: {
-        game->enemys[0].type = TILE_ENEMY_SPIDER;
-        game->enemys[0].path_index = 0;
-        game->enemys[0].px = 44 * TILE_SIZE;
-        game->enemys[0].py = 4 * TILE_SIZE;
-        game->enemys[0].next_px = 0;
-        game->enemys[0].next_py = 0;
-        game->enemys[0].death_timer = 0;
+    case LEVEL_3: {
+        game->enemies[0].type = 89;
+        game->enemies[0].px = 44 * TILE_SIZE;
+        game->enemies[0].py = 4 * TILE_SIZE;
 
-        game->enemys[1].type = TILE_ENEMY_SPIDER;
-        game->enemys[1].path_index = 0;
-        game->enemys[1].px = 59 * TILE_SIZE;
-        game->enemys[1].py = 4 * TILE_SIZE;
-        game->enemys[1].next_px = 0;
-        game->enemys[1].next_py = 0;
-        game->enemys[1].death_timer = 0;
+        game->enemies[1].type = 89;
+        game->enemies[1].px = 59 * TILE_SIZE;
+        game->enemies[1].py = 4 * TILE_SIZE;
     } break;
-
-    case 3: {
-        game->enemys[0].type = TILE_ENEMY_PURPER;
-        game->enemys[0].path_index = 0;
-        game->enemys[0].px = 32 * TILE_SIZE;
-        game->enemys[0].py = 2 * TILE_SIZE;
-        game->enemys[0].next_px = 0;
-        game->enemys[0].next_py = 0;
-        game->enemys[0].death_timer = 0;
+    case LEVEL_4: {
+        game->enemies[0].type = 93;
+        game->enemies[0].px = 32 * TILE_SIZE;
+        game->enemies[0].py = 2 * TILE_SIZE;
+    } break;
+    case LEVEL_5: {
+        game->enemies[0].type = 97;
+        game->enemies[0].px = 15 * TILE_SIZE;
+        game->enemies[0].py = 3 * TILE_SIZE;
+        game->enemies[1].type = 97;
+        game->enemies[1].px = 33 * TILE_SIZE;
+        game->enemies[1].py = 3 * TILE_SIZE;
+        game->enemies[2].type = 97;
+        game->enemies[2].px = 49 * TILE_SIZE;
+        game->enemies[2].py = 3 * TILE_SIZE;
+    } break;
+    case LEVEL_6: {
+        game->enemies[0].type = 101;
+        game->enemies[0].px = 10 * TILE_SIZE;
+        game->enemies[0].py = 8 * TILE_SIZE;
+        game->enemies[1].type = 101;
+        game->enemies[1].px = 28 * TILE_SIZE;
+        game->enemies[1].py = 8 * TILE_SIZE;
+        game->enemies[2].type = 101;
+        game->enemies[2].px = 45 * TILE_SIZE;
+        game->enemies[2].py = 2 * TILE_SIZE;
+        game->enemies[3].type = 101;
+        game->enemies[3].px = 40 * TILE_SIZE;
+        game->enemies[3].py = 8 * TILE_SIZE;
+    } break;
+    case LEVEL_7: {
+        game->enemies[0].type = 105;
+        game->enemies[0].px = 5 * TILE_SIZE;
+        game->enemies[0].py = 2 * TILE_SIZE;
+        game->enemies[1].type = 105;
+        game->enemies[1].px = 16 * TILE_SIZE;
+        game->enemies[1].py = 1 * TILE_SIZE;
+        game->enemies[2].type = 105;
+        game->enemies[2].px = 46 * TILE_SIZE;
+        game->enemies[2].py = 2 * TILE_SIZE;
+        game->enemies[3].type = 105;
+        game->enemies[3].px = 56 * TILE_SIZE;
+        game->enemies[3].py = 3 * TILE_SIZE;
+    } break;
+    case LEVEL_8: {
+        game->enemies[0].type = 109;
+        game->enemies[0].px = 53 * TILE_SIZE;
+        game->enemies[0].py = 5 * TILE_SIZE;
+        game->enemies[1].type = 109;
+        game->enemies[1].px = 72 * TILE_SIZE;
+        game->enemies[1].py = 2 * TILE_SIZE;
+        game->enemies[2].type = 109;
+        game->enemies[2].px = 84 * TILE_SIZE;
+        game->enemies[2].py = 1 * TILE_SIZE;
+    } break;
+    case LEVEL_9: {
+        game->enemies[0].type = 113;
+        game->enemies[0].px = 35 * TILE_SIZE;
+        game->enemies[0].py = 8 * TILE_SIZE;
+        game->enemies[1].type = 113;
+        game->enemies[1].px = 41 * TILE_SIZE;
+        game->enemies[1].py = 8 * TILE_SIZE;
+        game->enemies[2].type = 113;
+        game->enemies[2].px = 49 * TILE_SIZE;
+        game->enemies[2].py = 8 * TILE_SIZE;
+        game->enemies[3].type = 113;
+        game->enemies[3].px = 65 * TILE_SIZE;
+        game->enemies[3].py = 8 * TILE_SIZE;
+    } break;
+    case LEVEL_10: {
+        game->enemies[0].type = 117;
+        game->enemies[0].px = 45 * TILE_SIZE;
+        game->enemies[0].py = 8 * TILE_SIZE;
+        game->enemies[1].type = 117;
+        game->enemies[1].px = 51 * TILE_SIZE;
+        game->enemies[1].py = 2 * TILE_SIZE;
+        game->enemies[2].type = 117;
+        game->enemies[2].px = 65 * TILE_SIZE;
+        game->enemies[2].py = 3 * TILE_SIZE;
+        game->enemies[3].type = 117;
+        game->enemies[3].px = 82 * TILE_SIZE;
+        game->enemies[3].py = 5 * TILE_SIZE;
     } break;
 
     default:
@@ -647,14 +736,15 @@ static void update_pbullet(void)
     if (game->player.bullet_px) {
         game->player.bullet_px += game->player.bullet_dir * BULLET_SPEED;
 
-        for (size_t i = 0; i < NUM_ENEMYS; i++) {
-            if (game->enemys[i].type) {
-                uint8_t mx = game->enemys[i].x;
-                uint8_t my = game->enemys[i].y;
+        for (size_t i = 0; i < NUM_ENEMIES; i++) {
+            if (game->enemies[i].type) {
+                uint8_t mx = game->enemies[i].x;
+                uint8_t my = game->enemies[i].y;
 
                 if ((grid_y == my || grid_y == my + 1) && (grid_x == mx || grid_x == mx + 1)) {
                     game->player.bullet_px = game->player.bullet_py = 0;
-                    game->enemys[i].death_timer = DEATH_TIME;
+                    game->enemies[i].death_timer = DEATH_TIME;
+                    add_score(SCORE_ENEMY_KILL);
                 }
             }
         }
@@ -707,8 +797,13 @@ static void verify_input(void)
     }
 
     if (game->player.try_jump && game->player.on_ground && !game->player.jump && !game->player.using_jetpack &&
-        game->player.collision_point[0] && game->player.collision_point[1]) {
+        !game->player.can_climb && game->player.collision_point[0] && game->player.collision_point[1]) {
         game->player.jump = 1;
+    }
+
+    if (game->player.try_up && game->player.can_climb) {
+        game->player.up = 1;
+        game->player.climb = 1;
     }
 
     if (game->player.try_fire && game->player.gun && !game->player.bullet_px && !game->player.bullet_py) {
@@ -720,8 +815,8 @@ static void verify_input(void)
         game->player.jetpack_delay = 10;
     }
 
-    if (game->player.try_down && game->player.using_jetpack && game->player.collision_point[4] &&
-        game->player.collision_point[5]) {
+    if (game->player.try_down && (game->player.using_jetpack || game->player.climb) &&
+        game->player.collision_point[4] && game->player.collision_point[5]) {
         game->player.down = 1;
     }
 
@@ -739,6 +834,11 @@ static void move_player(float dt)
 
     game->player.x = game->player.px / TILE_SIZE;
     game->player.y = game->player.py / TILE_SIZE;
+
+    if (game->player.y > 9) {
+        game->player.y = 0;
+        game->player.py = -16;
+    }
 
     if (game->player.right) {
         // float px = PLAYER_MOVE; // * MUL * dt;
@@ -772,16 +872,16 @@ static void move_player(float dt)
 
     if (game->player.jump) {
         if (!game->player.jump_timer) {
-            game->player.jump_timer = 45;
+            game->player.jump_timer = 30;
             game->player.last_dir = 0;
         }
 
         // TODO:(lukefilewalker): add delta time to jump
         if (game->player.collision_point[0] && game->player.collision_point[1]) {
-            if (game->player.jump_timer > 10) {
+            if (game->player.jump_timer > 16) {
                 game->player.py -= PLAYER_MOVE;
             }
-            if (game->player.jump_timer >= 5 && game->player.jump_timer <= 10) {
+            if (game->player.jump_timer >= 12 && game->player.jump_timer <= 15) {
                 game->player.py -= PLAYER_MOVE / 2;
             }
         }
@@ -794,7 +894,7 @@ static void move_player(float dt)
     }
 
     // Add gravity
-    if (!game->player.jump && !game->player.on_ground && !game->player.using_jetpack) {
+    if (!game->player.jump && !game->player.on_ground && !game->player.using_jetpack && !game->player.climb) {
         if (is_clear(game->player.px + 4, game->player.py + 17, 1)) {
             game->player.py += PLAYER_MOVE;
         } else {
@@ -827,40 +927,44 @@ static void move_player(float dt)
     }
 }
 
-static void move_enemys(float dt)
+static void move_enemies(float dt)
 {
-    for (uint8_t i = 0; i < NUM_ENEMYS; i++) {
-        enemy_t *m = &game->enemys[i];
+    for (uint8_t i = 0; i < NUM_ENEMIES; i++) {
+        enemy_t *m = &game->enemies[i];
         if (m->type && !m->death_timer) {
-            if (!m->next_px && !m->next_py) {
-                m->next_px = game->level[game->cur_level].path[m->path_index];
-                m->next_py = game->level[game->cur_level].path[m->path_index + 1];
-                m->path_index += 2;
-            }
+            // Move enemies twice as fast
+            // TODO:(lukefilewalker) is there a better way to do this?
+            for (int j = 0; j < 2; j++) {
+                if (!m->next_px && !m->next_py) {
+                    m->next_px = game->level[game->cur_level].path[m->path_index];
+                    m->next_py = game->level[game->cur_level].path[m->path_index + 1];
+                    m->path_index += 2;
+                }
 
-            // If end of path, reset path to beginning
-            if (m->next_px == (int8_t)0xea && m->next_py == (int8_t)0xea) {
-                m->next_px = game->level[game->cur_level].path[0];
-                m->next_py = game->level[game->cur_level].path[1];
-                m->path_index += 2;
-            }
+                // If end of path, reset path to beginning
+                if (m->next_px == (int8_t)0xea && m->next_py == (int8_t)0xea) {
+                    m->next_px = game->level[game->cur_level].path[0];
+                    m->next_py = game->level[game->cur_level].path[1];
+                    m->path_index += 2;
+                }
 
-            if (m->next_px < 0) {
-                m->px -= 1;
-                m->next_px++;
-            }
-            if (m->next_px > 0) {
-                m->px += 1;
-                m->next_px--;
-            }
+                if (m->next_px < 0) {
+                    m->px -= 1;
+                    m->next_px++;
+                }
+                if (m->next_px > 0) {
+                    m->px += 1;
+                    m->next_px--;
+                }
 
-            if (m->next_py < 0) {
-                m->py -= 1;
-                m->next_py++;
-            }
-            if (m->next_py > 0) {
-                m->py += 1;
-                m->next_py--;
+                if (m->next_py < 0) {
+                    m->py -= 1;
+                    m->next_py++;
+                }
+                if (m->next_py > 0) {
+                    m->py += 1;
+                    m->next_py--;
+                }
             }
 
             m->x = m->px / TILE_SIZE;
@@ -868,11 +972,11 @@ static void move_enemys(float dt)
         }
     }
 
-    // enemys firing
+    // enemies firing
     if (!game->ebullet_px && !game->ebullet_py) {
-        for (uint8_t i = 0; i < NUM_ENEMYS; i++) {
-            if (game->enemys[i].type && is_visible(game->enemys[i].px) && !game->enemys[i].death_timer) {
-                game->ebullet_dir = game->player.px < game->enemys[i].px ? -1 : 1;
+        for (uint8_t i = 0; i < NUM_ENEMIES; i++) {
+            if (game->enemies[i].type && is_visible(game->enemies[i].px) && !game->enemies[i].death_timer) {
+                game->ebullet_dir = game->player.px < game->enemies[i].px ? -1 : 1;
 
                 // Default direction of bullet should be right
                 if (!game->ebullet_dir) {
@@ -881,14 +985,14 @@ static void move_enemys(float dt)
 
                 // Create the bullet on the appropriate side of the enemy
                 if (game->ebullet_dir == 1) {
-                    game->ebullet_px = game->enemys[i].px + 18;
+                    game->ebullet_px = game->enemies[i].px + 18;
                 }
                 if (game->ebullet_dir == -1) {
-                    game->ebullet_px = game->enemys[i].px - 8;
+                    game->ebullet_px = game->enemies[i].px - 8;
                 }
                 sprintf(debug_msgs[0], "bullet px: %d", game->ebullet_px);
 
-                game->ebullet_py = game->enemys[i].py + 8;
+                game->ebullet_py = game->enemies[i].py + 8;
             }
         }
     }
@@ -912,7 +1016,7 @@ static void pickup_item(uint8_t grid_x, uint8_t grid_y)
     } break;
 
     case TILE_TROPHY: {
-        game->player.score += SCORE_TROPHY;
+        add_score(SCORE_TROPHY);
         game->player.trophy = 1;
     } break;
 
@@ -922,27 +1026,27 @@ static void pickup_item(uint8_t grid_x, uint8_t grid_y)
 
     // TODO:(lukefilewalker) pull these magic nums out
     case 47: {
-        game->player.score += 100;
+        add_score(100);
     } break;
 
     case 48: {
-        game->player.score += 100;
+        add_score(50);
     } break;
 
     case 49: {
-        game->player.score += 100;
+        add_score(150);
 
     } break;
     case 50: {
-        game->player.score += 100;
+        add_score(300);
     } break;
 
     case 51: {
-        game->player.score += 100;
+        add_score(200);
     } break;
 
     case 52: {
-        game->player.score += 100;
+        add_score(500);
     } break;
 
     default:
@@ -953,6 +1057,14 @@ static void pickup_item(uint8_t grid_x, uint8_t grid_y)
 
     game->player.check_pickup_x = 0;
     game->player.check_pickup_y = 0;
+}
+
+static void add_score(uint16_t new_score)
+{
+    if (game->player.score / SCORE_NEW_LIFE != game->player.score + new_score / SCORE_NEW_LIFE) {
+        game->player.lives++;
+    }
+    game->player.score = new_score;
 }
 
 static void clear_input(void)
@@ -1043,6 +1155,10 @@ static void render_player(void)
         if (game->player.jump || !game->player.on_ground) {
             tile_index = game->player.last_dir >= 0 ? TILE_PLAYER_JUMP_LEFT : TILE_PLAYER_JUMP_RIGHT;
         }
+
+        if (game->player.climb) {
+            tile_index = 71 + (game->player.tick / 5) % 3;
+        }
     }
 
     if (game->player.death_timer) {
@@ -1053,10 +1169,10 @@ static void render_player(void)
     SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
 }
 
-static void render_enemys(void)
+static void render_enemies(void)
 {
-    for (int i = 0; i < NUM_ENEMYS; i++) {
-        enemy_t *m = &game->enemys[i];
+    for (int i = 0; i < NUM_ENEMIES; i++) {
+        enemy_t *m = &game->enemies[i];
         // TODO:(lukefilewalker) figure out whats going on with this magic num
         uint8_t tile_index = m->death_timer ? 129 : m->type;
         tile_index += (game->tick / 3) % 4;
@@ -1091,7 +1207,7 @@ static void render_player_bullet(void)
 }
 
 // TODO:(lukefilewalker): combine with enemy render?
-static void render_enemys_bullet(void)
+static void render_enemies_bullet(void)
 {
     if (game->ebullet_px && game->ebullet_py) {
         SDL_Rect dest = {
@@ -1267,6 +1383,11 @@ static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player)
 {
     uint8_t grid_x = px / TILE_SIZE;
     uint8_t grid_y = py / TILE_SIZE;
+
+    if (grid_x >= GAME_AREA_TOP || grid_y >= GAME_AREA_BOTTOM) {
+        return 1;
+    }
+
     uint8_t type = game->level[game->cur_level].tiles[grid_y * 100 + grid_x];
 
     // Tiles that the player collides with
