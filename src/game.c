@@ -1,5 +1,4 @@
 #include "game.h"
-#include "SDL_render.h"
 #include "error.h"
 #include "log.h"
 #include <SDL2/SDL_ttf.h>
@@ -69,48 +68,36 @@ int game_init(const bool debug)
     char *version = "0.1.0";
     add_debug_msg("version: %s", version);
 
-    FILE *fd_level;
-    char fname[ASSET_FNAME_SIZE];
-    char file_num[4];
+    LOG_INFO("game_init", "allocating memory for game state");
 
     game = malloc(sizeof(game_state_t));
     if (!game) {
         return err_fatal(ERR_ALLOC, "game state");
     }
-    memset(game, 0, sizeof(game_state_t));
 
+    // Init game state
+    memset(game, 0, sizeof(game_state_t));
     game->debug = debug;
-    game->is_running = false;
     game->ticks_last_frame = SDL_GetTicks();
     game->cur_level = LEVEL_1;
-    // TODO:(lukefilewalker): remove this init code when you've confirmed that game data is init'd to 0
-    // game->scroll_x = 0;
-    // game->tick = 0;
 
+    // Init player
     game->player.on_ground = 1;
     game->player.lives = NUM_START_LIVES;
-    // TODO:(lukefilewalker): remove this init code when you've confirmed that player is init'd to 0
-    // game->player.try_right = 0;
-    // game->player.try_left = 0;
-    // game->player.try_jump = 0;
-    // game->player.try_jetpack = 0;
-    // game->player.check_pickup_x = 0;
-    // game->player.check_pickup_y = 0;
-
-    // TODO:(lukefilewalker) remove cos you're memsetting
-    for (int i = 0; i < NUM_ENEMIES; i++) {
-        // TODO:(lukefilewalker) also, spell much? enemies?
-        game->enemies[i].type = 0;
-    }
 
     LOG_INFO("game_init", "loading levels");
 
+    FILE *fd_level;
+    char fname[DATA_FNAME_SIZE];
+    char file_num[4];
+
     for (int i = 0; i < NUM_LEVELS; i++) {
         fname[0] = '\0';
-        strcat(fname, "res/level");
+        char *basename = "res/data/level";
+        strncat(fname, basename, strlen(basename));
         sprintf(&file_num[0], "%u", i);
-        strcat(fname, file_num);
-        strcat(fname, ".dat");
+        strncat(fname, file_num, strlen(file_num));
+        strncat(fname, ".dat", strlen(".dat"));
 
         fd_level = fopen(fname, "rb");
         if (!fd_level) {
@@ -136,11 +123,8 @@ int game_init(const bool debug)
         return err_fatal(ERR_SDL_INIT, SDL_GetError());
     }
 
-    // TODO:(lukefilewalker): clean up :(
     if (TTF_Init() == -1) {
-        SDL_Log("SDL_ttf could not initialize! TTF_Error: %s", TTF_GetError());
-        SDL_Quit();
-        return 1;
+        return err_fatal(ERR_SDL_TTF, SDL_GetError());
     }
 
     if (SDL_CreateWindowAndRenderer(320 * DISPLAY_SCALE, 200 * DISPLAY_SCALE, 0, &window, &renderer) != 0) {
@@ -149,18 +133,12 @@ int game_init(const bool debug)
 
     SDL_RenderSetScale(renderer, DISPLAY_SCALE, DISPLAY_SCALE);
 
-    // TODO:(lukefilewalker): clean up :( and add a font into game assets or something
-    font = TTF_OpenFont("/home/lukefilewalker/repos/tyler.c/assets/fonts/DroidSans.ttf", 16);
+    font = TTF_OpenFont("./res/fonts/Roboto-Medium.ttf", 16);
     if (!font) {
-        SDL_Log("Font could not be loaded! TTF_Error: %s", TTF_GetError());
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        TTF_Quit();
-        SDL_Quit();
-        return 1;
+        return err_fatal(ERR_SDL_TTF_LOAD_FONT, SDL_GetError());
     }
 
-    LOG_INFO("game_init", "malloc'ing assets");
+    LOG_INFO("game_init", "allocating memory for assets");
 
     assets = malloc(sizeof(game_assets_t));
     if (!assets) {
@@ -237,22 +215,23 @@ static int init_assets(void)
 {
     LOG_INFO("init_assets", "entered");
 
-    char fname[ASSET_FNAME_SIZE];
-    char file_num[4];
-    char mname[ASSET_FNAME_SIZE];
-    char mask_num[4];
-    SDL_Surface *surface;
-    SDL_Surface *mask_surface;
-    uint8_t mask_offset;
-    uint8_t *player_pixels;
-    uint8_t *mask_pixels;
+    char fname[ASSET_FNAME_SIZE] = {0};
+    char file_num[4] = {0};
+    char mname[ASSET_FNAME_SIZE] = {0};
+    char mask_num[4] = {0};
+    SDL_Surface *surface = NULL;
+    SDL_Surface *mask_surface = NULL;
+    uint8_t mask_offset = 0;
+    uint8_t *player_pixels = 0;
+    uint8_t *mask_pixels = 0;
 
     for (size_t i = 0; i < NUM_TILES; i++) {
         fname[0] = '\0';
-        strcat(fname, "res/tile");
+        char *basename = "res/assets/tile";
+        strncat(fname, basename, strlen(basename));
         sprintf(&file_num[0], "%u", (int)i);
-        strcat(fname, file_num);
-        strcat(fname, ".bmp");
+        strncat(fname, file_num, strlen(file_num));
+        strncat(fname, ".bmp", strlen(".bmp"));
 
         // Harry tiles
         if ((i >= 53 && i <= 59) || i == 67 || i == 68 || (i >= 71 && i <= 73) || (i >= 77 && i <= 82)) {
@@ -272,10 +251,11 @@ static int init_assets(void)
             player_pixels = (uint8_t *)surface->pixels;
 
             mname[0] = '\0';
-            strcat(mname, "res/tile");
+            char *basename = "res/assets/tile";
+            strncat(mname, basename, strlen(basename));
             sprintf(&mask_num[0], "%u", (uint8_t)i + mask_offset);
-            strcat(mname, mask_num);
-            strcat(mname, ".bmp");
+            strncat(mname, mask_num, strlen(mask_num));
+            strncat(mname, ".bmp", strlen(".bmp"));
 
             mask_surface = SDL_LoadBMP(mname);
             if (!mask_surface) {

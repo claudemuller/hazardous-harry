@@ -8,6 +8,8 @@ enum {
     ERR_SDL_INIT,
     ERR_SDL_CREATE_WIN_RENDER,
     ERR_SDL_LOADING_BMP,
+    ERR_SDL_TTF,
+    ERR_SDL_TTF_LOAD_FONT,
 };
 
 extern char err_additional[256];

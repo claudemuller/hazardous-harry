@@ -2,6 +2,7 @@
 #define HH_UTILS_H
 
 #include <stdio.h>
+
 void itoa(int value, char *str, int base)
 {
     if (base == 10) {

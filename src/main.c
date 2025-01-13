@@ -5,6 +5,8 @@
 #include "log.h"
 #include <string.h>
 
+// TODO:(lukefilewalker) remove res dir from gitignore when new assets have been created!
+
 int main(int argc, char *argv[])
 {
     bool debug = false;

@@ -12,6 +12,8 @@ const char *err_messages[] = {
     "Error initialising SDL",
     "Error creating SDL window/renderer",
     "Error loading BMP",
+    "Error initialising fonts",
+    "Error loading font",
 };
 
 void err_handle(const int err)
