@@ -1,6 +1,7 @@
 #include "game.h"
 #include "error.h"
 #include "log.h"
+#include "utils.h"
 #include <SDL2/SDL_ttf.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -30,6 +31,8 @@ static char debug_msgs[MAX_DEBUG_MESSAGES][1000];
 
 static int init_assets(void);
 
+static bool is_player_tile(uint8_t tile);
+static bool is_enemy_tile(uint8_t tile);
 static void check_collisions(void);
 static void process_input(void);
 static void update(float dt);
@@ -97,7 +100,7 @@ int game_init(const bool debug)
         strncat(fname, basename, strlen(basename));
         sprintf(&file_num[0], "%u", i);
         strncat(fname, file_num, strlen(file_num));
-        strncat(fname, ".dat", strlen(".dat"));
+        strncat(fname, ".dat", strlen(".dat") + 1);
 
         fd_level = fopen(fname, "rb");
         if (!fd_level) {
@@ -215,6 +218,7 @@ static int init_assets(void)
 {
     LOG_INFO("init_assets", "entered");
 
+    char *basename = "res/assets/tile";
     char fname[ASSET_FNAME_SIZE] = {0};
     char file_num[4] = {0};
     char mname[ASSET_FNAME_SIZE] = {0};
@@ -227,22 +231,32 @@ static int init_assets(void)
 
     for (size_t i = 0; i < NUM_TILES; i++) {
         fname[0] = '\0';
-        char *basename = "res/assets/tile";
         strncat(fname, basename, strlen(basename));
-        sprintf(&file_num[0], "%u", (int)i);
+        sprintf(&file_num[0], "%u", (uint8_t)i);
         strncat(fname, file_num, strlen(file_num));
-        strncat(fname, ".bmp", strlen(".bmp"));
+        strncat(fname, ".bmp", strlen(".bmp") + 1);
 
-        // Harry tiles
-        if ((i >= 53 && i <= 59) || i == 67 || i == 68 || (i >= 71 && i <= 73) || (i >= 77 && i <= 82)) {
-            if (i >= 53 && i <= 59)
-                mask_offset = 7;
-            if (i >= 67 && i <= 68)
-                mask_offset = 2;
-            if (i >= 71 && i <= 73)
-                mask_offset = 3;
-            if (i >= 77 && i <= 82)
-                mask_offset = 6;
+        // Load player tiles
+        if (is_player_tile(i)) {
+            // Apply mask to walking tiles
+            if (in_array(TILES_PLAYER_WALKING, 53, NUM_TILES_PLAYER_WALKING)) {
+                mask_offset = TILES_PLAYER_WALKING_MASK_OFFSET;
+            }
+
+            // Apply mask to climbing tiles
+            if (in_array(TILES_PLAYER_CLIMBING, i, NUM_TILES_PLAYER_CLIMBING)) {
+                mask_offset = TILES_PLAYER_CLIMBING_MASK_OFFSET;
+            }
+
+            // Apply mask to jumping left and right
+            if (i == TILE_PLAYER_JUMP_LEFT || i == TILE_PLAYER_JUMP_RIGHT) {
+                mask_offset = TILE_PLAYER_JUMP_MASK_OFFSET;
+            }
+
+            // Apply mask to jetpack tiles
+            if (in_array(TILES_PLAYER_JETPACK, i, NUM_TILES_PLAYER_JETPACK)) {
+                mask_offset = TILES_PLAYER_JETPACK_MASK_OFFSET;
+            }
 
             surface = SDL_LoadBMP(fname);
             if (!surface) {
@@ -251,11 +265,10 @@ static int init_assets(void)
             player_pixels = (uint8_t *)surface->pixels;
 
             mname[0] = '\0';
-            char *basename = "res/assets/tile";
             strncat(mname, basename, strlen(basename));
             sprintf(&mask_num[0], "%u", (uint8_t)i + mask_offset);
             strncat(mname, mask_num, strlen(mask_num));
-            strncat(mname, ".bmp", strlen(".bmp"));
+            strncat(mname, ".bmp", strlen(".bmp") + 1);
 
             mask_surface = SDL_LoadBMP(mname);
             if (!mask_surface) {
@@ -264,7 +277,11 @@ static int init_assets(void)
             mask_pixels = (uint8_t *)mask_surface->pixels;
 
             // Go through tile and make pixels white where they aren't black
-            for (int j = 0; j < mask_surface->pitch * mask_surface->h; j++) {
+            // ---pitch---
+            // ··········· |
+            // ··········· h
+            // ··········· |
+            for (size_t j = 0; j < (uint64_t)mask_surface->pitch * mask_surface->h; j++) {
                 player_pixels[j] = mask_pixels[j] ? COLOUR_WHITE : player_pixels[j];
             }
             SDL_SetColorKey(surface, 1, SDL_MapRGB(surface->format, COLOUR_WHITE, COLOUR_WHITE, COLOUR_WHITE));
@@ -272,23 +289,43 @@ static int init_assets(void)
 
             SDL_FreeSurface(surface);
             SDL_FreeSurface(mask_surface);
-        } else {
-            surface = SDL_LoadBMP(fname);
-            if (!surface) {
-                return err_fatal(ERR_SDL_LOADING_BMP, fname);
-            }
-            // TODO:(lukefilewalker) and these?
-            if ((i >= 89 && i <= 120) || (i >= 129 && i <= 132)) {
-                SDL_SetColorKey(surface, 1, SDL_MapRGB(surface->format, COLOUR_BLACK, COLOUR_BLACK, COLOUR_BLACK));
-            }
 
-            assets->gfx_tiles[i] = SDL_CreateTextureFromSurface(renderer, surface);
-
-            SDL_FreeSurface(surface);
+            continue;
         }
+
+        // Load all the other tiles
+        surface = SDL_LoadBMP(fname);
+        if (!surface) {
+            return err_fatal(ERR_SDL_LOADING_BMP, fname);
+        }
+
+        // Colour key enemy and death tiles
+        if (is_enemy_tile(i) || in_array(TILES_DEATH, i, NUM_TILES_DEATH)) {
+            SDL_SetColorKey(surface, 1, SDL_MapRGB(surface->format, COLOUR_BLACK, COLOUR_BLACK, COLOUR_BLACK));
+        }
+
+        assets->gfx_tiles[i] = SDL_CreateTextureFromSurface(renderer, surface);
+
+        SDL_FreeSurface(surface);
     }
 
     return SUCCESS;
+}
+
+static bool is_player_tile(uint8_t tile)
+{
+    return in_array(TILES_PLAYER_WALKING, tile, NUM_TILES_PLAYER_WALKING) || tile == TILE_PLAYER_JUMP_LEFT ||
+           tile == TILE_PLAYER_JUMP_RIGHT || in_array(TILES_PLAYER_CLIMBING, tile, NUM_TILES_PLAYER_CLIMBING) ||
+           in_array(TILES_PLAYER_JETPACK, tile, NUM_TILES_PLAYER_JETPACK);
+}
+
+static bool is_enemy_tile(uint8_t tile)
+{
+    return in_array(TILES_ENEMY_ONE, tile, NUM_TILES_ENEMIES) || in_array(TILES_ENEMY_TWO, tile, NUM_TILES_ENEMIES) ||
+           in_array(TILES_ENEMY_THREE, tile, NUM_TILES_ENEMIES) ||
+           in_array(TILES_ENEMY_FOUR, tile, NUM_TILES_ENEMIES) || in_array(TILES_ENEMY_FIVE, tile, NUM_TILES_ENEMIES) ||
+           in_array(TILES_ENEMY_SIX, tile, NUM_TILES_ENEMIES) || in_array(TILES_ENEMY_SEVEN, tile, NUM_TILES_ENEMIES) ||
+           in_array(TILES_ENEMY_EIGHT, tile, NUM_TILES_ENEMIES);
 }
 
 static void check_collisions(void)
