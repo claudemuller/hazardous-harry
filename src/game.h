@@ -26,6 +26,11 @@
 
 #define DEATH_TIME 30
 
+#define RIGHT_CAMERA_SCROLL_TRIGGER_TILE 18
+#define LEFT_CAMERA_SCROLL_TRIGGER_TILE 2
+#define CAMERA_SCROLL_AMOUNT 80
+#define NUM_TILES_TO_SCROLL_CAMERA 15
+
 #define PLAYER_W 20
 #define PLAYER_H 16
 #define PLAYER_START_X 2
@@ -34,9 +39,6 @@
 #define BULLET_SPEED 4
 #define BULLET_W 12
 #define BULLET_H 3
-
-#define COLOUR_WHITE 0xff
-#define COLOUR_BLACK 0x00
 
 #define LEVEL_1 0
 #define LEVEL_2 1
@@ -60,6 +62,7 @@
 #define TILE_TREE_3 35
 #define TILE_STAR 41
 
+// Player tiles
 #define NUM_TILES_PLAYER_WALKING 7
 static const uint8_t TILES_PLAYER_WALKING[NUM_TILES_PLAYER_WALKING] = {53, 54, 55, 56, 57, 58, 59};
 #define TILES_PLAYER_WALKING_MASK_OFFSET 7
@@ -78,28 +81,32 @@ static const uint8_t TILES_PLAYER_JETPACK[NUM_TILES_PLAYER_JETPACK] = {77, 78, 7
 #define TILE_JETPACK_LEFT 77
 #define TILE_JETPACK_RIGHT 80
 
+// Enemy tiles
 #define NUM_TILES_ENEMIES 4
-static const uint8_t TILES_ENEMY_ONE[NUM_TILES_ENEMIES] = {89, 90, 91, 92};
-static const uint8_t TILES_ENEMY_TWO[NUM_TILES_ENEMIES] = {93, 94, 95, 96};
-static const uint8_t TILES_ENEMY_THREE[NUM_TILES_ENEMIES] = {97, 98, 99, 100};
-static const uint8_t TILES_ENEMY_FOUR[NUM_TILES_ENEMIES] = {101, 102, 103, 104};
-static const uint8_t TILES_ENEMY_FIVE[NUM_TILES_ENEMIES] = {105, 106, 107, 108};
-static const uint8_t TILES_ENEMY_SIX[NUM_TILES_ENEMIES] = {109, 110, 111, 112};
-static const uint8_t TILES_ENEMY_SEVEN[NUM_TILES_ENEMIES] = {113, 114, 115, 116};
-static const uint8_t TILES_ENEMY_EIGHT[NUM_TILES_ENEMIES] = {117, 118, 119, 120};
+static const uint8_t TILES_ENEMY_LEVEL_TWO[NUM_TILES_ENEMIES] = {89, 90, 91, 92};
+static const uint8_t TILES_ENEMY_LEVEL_THREE[NUM_TILES_ENEMIES] = {93, 94, 95, 96};
+static const uint8_t TILES_ENEMY_LEVEL_FOUR[NUM_TILES_ENEMIES] = {97, 98, 99, 100};
+static const uint8_t TILES_ENEMY_LEVEL_FIVE[NUM_TILES_ENEMIES] = {101, 102, 103, 104};
+static const uint8_t TILES_ENEMY_LEVEL_SIX[NUM_TILES_ENEMIES] = {105, 106, 107, 108};
+static const uint8_t TILES_ENEMY_LEVEL_SEVEN[NUM_TILES_ENEMIES] = {109, 110, 111, 112};
+static const uint8_t TILES_ENEMY_LEVEL_EIGHT[NUM_TILES_ENEMIES] = {113, 114, 115, 116};
+static const uint8_t TILES_ENEMY_LEVEL_NINE[NUM_TILES_ENEMIES] = {117, 118, 119, 120};
 #define TILE_ENEMY_SPIDER 89
 #define TILE_ENEMY_PURPER 93
 #define TILE_ENEMY_BULLET_LEFT 121
 #define TILE_ENEMY_BULLET_RIGHT 124
 
+// General tiles
 #define NUM_TILES_DEATH 4
 static const uint8_t TILES_DEATH[NUM_TILES_DEATH] = {129, 130, 131, 132};
 
+// UI tiles
 #define TILE_UI_SCORE 137
 #define TILE_UI_LEVEL 136
 #define TILE_UI_LIVES 135
 #define TILE_UI_NUM_0 148
 
+// Scores
 #define SCORE_TROPHY 1000
 
 typedef struct {
@@ -121,23 +128,23 @@ typedef struct {
 
     uint8_t collision_point[9];
 
-    uint8_t try_right;
-    uint8_t try_left;
-    uint8_t try_down;
-    uint8_t try_jump;
-    uint8_t try_up;
-    uint8_t try_fire;
-    uint8_t try_jetpack;
+    bool try_right;
+    bool try_left;
+    bool try_down;
+    bool try_jump;
+    bool try_up;
+    bool try_fire;
+    bool try_jetpack;
 
-    uint8_t right;
-    uint8_t left;
-    uint8_t up;
-    uint8_t down;
-    uint8_t climb;
-    uint8_t jump;
+    bool right;
+    bool left;
+    bool up;
+    bool down;
+    bool climb;
+    bool jump;
+    bool fire;
+    bool using_jetpack;
     uint8_t jump_timer;
-    uint8_t fire;
-    uint8_t using_jetpack;
 
     int8_t last_dir;
     uint8_t on_ground;
@@ -145,9 +152,9 @@ typedef struct {
     uint8_t check_pickup_y;
     uint8_t check_door;
     uint8_t can_climb;
-    uint8_t trophy;
+    bool has_trophy;
     uint8_t gun;
-    uint8_t jetpack;
+    uint8_t jetpack_fuel;
     uint8_t jetpack_delay;
 
     uint16_t bullet_px;
@@ -176,8 +183,8 @@ typedef struct {
     uint8_t tick;
     uint8_t cur_level;
 
-    uint8_t view_x;
-    uint8_t view_y;
+    uint8_t camera_x;
+    uint8_t camera_y;
     int8_t scroll_x;
 
     level_t level[NUM_LEVELS];

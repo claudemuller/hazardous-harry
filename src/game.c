@@ -1,4 +1,7 @@
 #include "game.h"
+#include "SDL_rect.h"
+#include "SDL_render.h"
+#include "SDL_surface.h"
 #include "error.h"
 #include "log.h"
 #include "utils.h"
@@ -93,10 +96,10 @@ int game_init(const bool debug)
     FILE *fd_level;
     char fname[DATA_FNAME_SIZE];
     char file_num[4];
+    char *basename = "res/data/level";
 
     for (int i = 0; i < NUM_LEVELS; i++) {
         fname[0] = '\0';
-        char *basename = "res/data/level";
         strncat(fname, basename, strlen(basename));
         sprintf(&file_num[0], "%u", i);
         strncat(fname, file_num, strlen(file_num));
@@ -282,9 +285,9 @@ static int init_assets(void)
             // ··········· h
             // ··········· |
             for (size_t j = 0; j < (uint64_t)mask_surface->pitch * mask_surface->h; j++) {
-                player_pixels[j] = mask_pixels[j] ? COLOUR_WHITE : player_pixels[j];
+                player_pixels[j] = mask_pixels[j] ? 0xff : player_pixels[j];
             }
-            SDL_SetColorKey(surface, 1, SDL_MapRGB(surface->format, COLOUR_WHITE, COLOUR_WHITE, COLOUR_WHITE));
+            SDL_SetColorKey(surface, 1, SDL_MapRGB(surface->format, 0xff, 0xff, 0xff));
             assets->gfx_tiles[i] = SDL_CreateTextureFromSurface(renderer, surface);
 
             SDL_FreeSurface(surface);
@@ -301,7 +304,7 @@ static int init_assets(void)
 
         // Colour key enemy and death tiles
         if (is_enemy_tile(i) || in_array(TILES_DEATH, i, NUM_TILES_DEATH)) {
-            SDL_SetColorKey(surface, 1, SDL_MapRGB(surface->format, COLOUR_BLACK, COLOUR_BLACK, COLOUR_BLACK));
+            SDL_SetColorKey(surface, 1, SDL_MapRGB(surface->format, 0x00, 0x00, 0x00));
         }
 
         assets->gfx_tiles[i] = SDL_CreateTextureFromSurface(renderer, surface);
@@ -321,16 +324,20 @@ static bool is_player_tile(uint8_t tile)
 
 static bool is_enemy_tile(uint8_t tile)
 {
-    return in_array(TILES_ENEMY_ONE, tile, NUM_TILES_ENEMIES) || in_array(TILES_ENEMY_TWO, tile, NUM_TILES_ENEMIES) ||
-           in_array(TILES_ENEMY_THREE, tile, NUM_TILES_ENEMIES) ||
-           in_array(TILES_ENEMY_FOUR, tile, NUM_TILES_ENEMIES) || in_array(TILES_ENEMY_FIVE, tile, NUM_TILES_ENEMIES) ||
-           in_array(TILES_ENEMY_SIX, tile, NUM_TILES_ENEMIES) || in_array(TILES_ENEMY_SEVEN, tile, NUM_TILES_ENEMIES) ||
-           in_array(TILES_ENEMY_EIGHT, tile, NUM_TILES_ENEMIES);
+    return in_array(TILES_ENEMY_LEVEL_TWO, tile, NUM_TILES_ENEMIES) ||
+           in_array(TILES_ENEMY_LEVEL_THREE, tile, NUM_TILES_ENEMIES) ||
+           in_array(TILES_ENEMY_LEVEL_FOUR, tile, NUM_TILES_ENEMIES) ||
+           in_array(TILES_ENEMY_LEVEL_FIVE, tile, NUM_TILES_ENEMIES) ||
+           in_array(TILES_ENEMY_LEVEL_SIX, tile, NUM_TILES_ENEMIES) ||
+           in_array(TILES_ENEMY_LEVEL_SEVEN, tile, NUM_TILES_ENEMIES) ||
+           in_array(TILES_ENEMY_LEVEL_EIGHT, tile, NUM_TILES_ENEMIES) ||
+           in_array(TILES_ENEMY_LEVEL_NINE, tile, NUM_TILES_ENEMIES);
 }
 
+// TODO:(lukefilewalker): change to is_colliding
+// TODO:(lukefilewalker) refactor this puppy still
 static void check_collisions(void)
 {
-    // TODO:(lukefilewalker): change to is_colliding
     game->player.collision_point[0] = is_clear(game->player.px + 4, game->player.py - 1, 1);
     game->player.collision_point[1] = is_clear(game->player.px + 10, game->player.py - 1, 1);
     game->player.collision_point[2] = is_clear(game->player.px + 11, game->player.py + 4, 1);
@@ -366,25 +373,25 @@ static void process_input(void)
     const uint8_t *keystate = SDL_GetKeyboardState(NULL);
 
     if (keystate[SDL_SCANCODE_RIGHT]) {
-        game->player.try_right = 1;
+        game->player.try_right = true;
     }
     if (keystate[SDL_SCANCODE_LEFT]) {
-        game->player.try_left = 1;
+        game->player.try_left = true;
     }
     if (keystate[SDL_SCANCODE_UP]) {
-        game->player.try_up = 1;
+        game->player.try_up = true;
     }
     if (keystate[SDL_SCANCODE_SPACE]) {
-        game->player.try_jump = 1;
+        game->player.try_jump = true;
     }
     if (keystate[SDL_SCANCODE_DOWN]) {
-        game->player.try_down = 1;
+        game->player.try_down = true;
     }
     if (keystate[SDL_SCANCODE_LCTRL]) {
-        game->player.try_fire = 1;
+        game->player.try_fire = true;
     }
     if (keystate[SDL_SCANCODE_LALT]) {
-        game->player.try_jetpack = 1;
+        game->player.try_jetpack = true;
     }
 
     SDL_Event event;
@@ -398,23 +405,10 @@ static void process_input(void)
             if (event.key.keysym.sym == SDLK_ESCAPE) {
                 game->is_running = false;
             }
-
-            //     if (event.key.keysym.sym == SDLK_RIGHT) {
-            //         game->scroll_x = 15;
-            //     }
-            //
-            //     if (event.key.keysym.sym == SDLK_LEFT) {
-            //         game->scroll_x = -15;
-            //     }
-            //
-            //     if (event.key.keysym.sym == SDLK_DOWN) {
-            //         game->cur_level++;
-            //     }
-            //
-            //     if (event.key.keysym.sym == SDLK_UP) {
-            //         game->cur_level--;
-            //     }
         } break;
+
+        default:
+            break;
         }
     }
 }
@@ -439,8 +433,8 @@ static void render(void)
     render_world();
     render_player();
     render_enemies();
-    render_player_bullet();
-    render_enemies_bullet();
+    // render_player_bullet();
+    // render_enemies_bullet();
     render_ui();
 
     if (game->debug) {
@@ -454,26 +448,33 @@ static void render(void)
 
 static void scroll_screen(void)
 {
-    if (game->player.x - game->view_x >= 18) {
-        game->scroll_x = 15;
+    // If player is at tile 18 in x, set amount to scroll view/camera to 15 tiles
+    if (game->player.x - game->camera_x >= RIGHT_CAMERA_SCROLL_TRIGGER_TILE) {
+        game->scroll_x = NUM_TILES_TO_SCROLL_CAMERA;
     }
-    if (game->player.x - game->view_x < 2) {
-        game->scroll_x = -15;
-    }
-
+    // If camera/view needs to scroll, advance it by camera scroll amount
     if (game->scroll_x > 0) {
-        if (game->view_x == 80) {
+        // TODO:(lukefilewalker) was ist das?
+        if (game->camera_x == 80) {
             game->scroll_x = 0;
         } else {
-            game->view_x++;
+            game->camera_x++;
             game->scroll_x--;
         }
     }
+
+    // If player is at tile 0, 1 in x, set amount to scroll view/camera back by 15 tiles
+    if (game->player.x - game->camera_x < LEFT_CAMERA_SCROLL_TRIGGER_TILE) {
+        game->scroll_x = -NUM_TILES_TO_SCROLL_CAMERA;
+    }
+
+    // If camera/view needs to scroll, reverse it by camera scroll amount
     if (game->scroll_x < 0) {
-        if (game->view_x == 0) {
+        // If camera has scrolled, reset scroll_x
+        if (game->camera_x == 0) {
             game->scroll_x = 0;
         } else {
-            game->view_x--;
+            game->camera_x--;
             game->scroll_x++;
         }
     }
@@ -489,48 +490,56 @@ static void update_level(void)
 
     // Jetpacks burn fuel when in use
     if (game->player.using_jetpack) {
-        game->player.jetpack--;
-        if (!game->player.jetpack) {
-            game->player.using_jetpack = 0;
+        game->player.jetpack_fuel--;
+        if (game->player.jetpack_fuel <= 0) {
+            game->player.using_jetpack = false;
         }
     }
 
     if (game->player.check_door) {
-        if (game->player.trophy) {
+        if (game->player.has_trophy) {
             add_score(SCORE_LEVEL_COMPLETION);
 
-            if (game->cur_level < 9) {
+            if (game->cur_level < LEVEL_10) {
                 game->cur_level++;
                 start_level();
             } else {
+                // TODO:(lukefilewalker) game cleared screen!
                 printf("Winner, winner, chicken dinner - your score was %u!\n", game->player.score);
                 game->is_running = false;
             }
+
+            return;
         } else {
             game->player.check_door = 0;
         }
     }
 
-    if (game->player.death_timer) {
+    // If the player is dying
+    if (game->player.death_timer >= 0) {
         game->player.death_timer--;
-        // If player died
-        if (!game->player.death_timer) {
-            // If player has lives remaining
-            if (game->player.lives) {
+        // If player has died
+        if (game->player.death_timer <= 0) {
+            // And player has lives remaining
+            if (game->player.lives > 0) {
+                // Deduct a life and restart level
                 game->player.lives--;
                 // TODO:(lukefilewalker): does this have to be its own func? i.e. start_level(cur_level)
                 restart_level();
             } else {
+                // Else, game over
                 game->is_running = false;
             }
         }
     }
 
     for (size_t i = 0; i < NUM_ENEMIES; i++) {
-        if (game->enemies[i].death_timer) {
+        // If the enemy is dying
+        if (game->enemies[i].death_timer >= 0) {
             game->enemies[i].death_timer--;
-            // Enemy has died
-            if (!game->enemies[i].death_timer) {
+            // If enemy has died
+            if (game->enemies[i].death_timer <= 0) {
+                // TODO:(lukefilewalker) huh? was ist das?
                 game->enemies[i].type = 0;
             }
         } else {
@@ -661,8 +670,8 @@ static void start_level(void)
     game->player.death_timer = 0;
     game->player.check_door = 0;
     game->player.jump_timer = 0;
-    game->view_x = 0;
-    game->view_y = 0;
+    game->camera_x = 0;
+    game->camera_y = 0;
     game->player.last_dir = 0;
     game->player.bullet_px = 0;
     game->player.bullet_py = 0;
@@ -746,7 +755,7 @@ static void update_pbullet(void)
     uint8_t grid_y = game->player.bullet_py / TILE_SIZE;
 
     // If bullet reaches the end of the screen, remove it
-    if (grid_x - game->view_x < 1 || grid_x - game->view_x > 20) {
+    if (grid_x - game->camera_x < 1 || grid_x - game->camera_x > 20) {
         game->player.bullet_px = game->player.bullet_py = 0;
     }
 
@@ -806,25 +815,25 @@ static void verify_input(void)
     }
 
     if (game->player.try_right && game->player.collision_point[2] && game->player.collision_point[3]) {
-        game->player.right = 1;
+        game->player.right = true;
     }
 
     if (game->player.try_left && game->player.collision_point[6] && game->player.collision_point[7]) {
-        game->player.left = 1;
+        game->player.left = true;
     }
 
     if (game->player.try_jump && game->player.on_ground && !game->player.jump && !game->player.using_jetpack &&
         !game->player.can_climb && game->player.collision_point[0] && game->player.collision_point[1]) {
-        game->player.jump = 1;
+        game->player.jump = true;
     }
 
     if (game->player.try_up && game->player.can_climb) {
-        game->player.up = 1;
-        game->player.climb = 1;
+        game->player.up = true;
+        game->player.climb = true;
     }
 
     if (game->player.try_fire && game->player.gun && !game->player.bullet_px && !game->player.bullet_py) {
-        game->player.fire = 1;
+        game->player.fire = true;
     }
 
     if (game->player.try_jetpack && game->player.jetpack && !game->player.jetpack_delay) {
@@ -834,12 +843,12 @@ static void verify_input(void)
 
     if (game->player.try_down && (game->player.using_jetpack || game->player.climb) &&
         game->player.collision_point[4] && game->player.collision_point[5]) {
-        game->player.down = 1;
+        game->player.down = true;
     }
 
     if (game->player.try_jump && game->player.using_jetpack && game->player.collision_point[0] &&
         game->player.collision_point[1]) {
-        game->player.up = 1;
+        game->player.up = true;
     }
 }
 
@@ -1086,12 +1095,12 @@ static void add_score(uint16_t new_score)
 
 static void clear_input(void)
 {
-    game->player.try_right = 0;
-    game->player.try_left = 0;
-    game->player.try_jump = 0;
-    game->player.try_down = 0;
-    game->player.try_fire = 0;
-    game->player.try_jetpack = 0;
+    game->player.try_right = false;
+    game->player.try_left = false;
+    game->player.try_jump = false;
+    game->player.try_down = false;
+    game->player.try_fire = false;
+    game->player.try_jetpack = false;
 }
 
 static uint8_t update_frame(uint8_t tile, uint8_t salt)
@@ -1142,9 +1151,23 @@ static void render_world(void)
         for (int j = 0; j < 20; j++) {
             dest.x = j * TILE_SIZE;
 
-            tile_index = game->level[game->cur_level].tiles[i * 100 + game->view_x + j];
+            tile_index = game->level[game->cur_level].tiles[i * 100 + game->camera_x + j];
             tile_index = update_frame(tile_index, dest.x);
             SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
+
+            // debug ----
+            // SDL_SetRenderDrawColor(renderer, 0xff, 0x00, 0x00, 0xff);
+            // SDL_RenderDrawRect(renderer, &dest);
+            //
+            // SDL_Color text_colour = {255, 255, 255, 255};
+            // char debug_num_str[4];
+            // itoa(dest.x / TILE_SIZE, debug_num_str, 10);
+            // SDL_Surface *debug_num_surf = TTF_RenderText_Solid(font, debug_num_str, text_colour);
+            // SDL_Texture *debug_texture = SDL_CreateTextureFromSurface(renderer, debug_num_surf);
+            // SDL_FreeSurface(debug_num_surf);
+            // SDL_RenderCopy(renderer, debug_texture, NULL, &dest);
+            // SDL_DestroyTexture(debug_texture);
+            // debug ----
         }
     }
 }
@@ -1152,7 +1175,7 @@ static void render_world(void)
 static void render_player(void)
 {
     SDL_Rect dest = {
-        .x = game->player.px - game->view_x * TILE_SIZE,
+        .x = game->player.px - game->camera_x * TILE_SIZE,
         // Move player down a tile for the UI
         .y = TILE_SIZE + game->player.py,
         .w = PLAYER_W,
@@ -1184,6 +1207,9 @@ static void render_player(void)
     }
 
     SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
+
+    // TODO:(lukefilewalker) render player bullet here?
+    // render_player_bullet();
 }
 
 static void render_enemies(void)
@@ -1196,7 +1222,7 @@ static void render_enemies(void)
 
         if (m->type) {
             SDL_Rect dest = {
-                .x = m->px - game->view_x * TILE_SIZE,
+                .x = m->px - game->camera_x * TILE_SIZE,
                 // Move player down a tile for the UI
                 .y = TILE_SIZE + m->py,
                 .w = PLAYER_W,
@@ -1206,13 +1232,16 @@ static void render_enemies(void)
             SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
         }
     }
+
+    // TODO:(lukefilewalker) Render enemy bullet here?
+    // render_enemies_bullet();
 }
 
 static void render_player_bullet(void)
 {
     if (game->player.bullet_px && game->player.bullet_py) {
         SDL_Rect dest = {
-            .x = game->player.bullet_px - game->view_x * TILE_SIZE,
+            .x = game->player.bullet_px - game->camera_x * TILE_SIZE,
             // Move player down a tile for the UI
             .y = TILE_SIZE + game->player.bullet_py,
             .w = BULLET_W,
@@ -1228,7 +1257,7 @@ static void render_enemies_bullet(void)
 {
     if (game->ebullet_px && game->ebullet_py) {
         SDL_Rect dest = {
-            .x = game->ebullet_px - game->view_x * TILE_SIZE,
+            .x = game->ebullet_px - game->camera_x * TILE_SIZE,
             // Move player down a tile for the UI
             .y = TILE_SIZE + game->ebullet_py,
             .w = BULLET_W,
@@ -1244,7 +1273,7 @@ static void render_ui(void)
 {
     // Draw UI frame
     SDL_Rect dest = {.x = 0, .y = 16, .w = 960, .h = 1};
-    SDL_SetRenderDrawColor(renderer, COLOUR_WHITE, COLOUR_WHITE, COLOUR_WHITE, COLOUR_WHITE);
+    SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, 0xff);
     SDL_RenderFillRect(renderer, &dest);
     dest.y = 176;
     SDL_RenderFillRect(renderer, &dest);
@@ -1327,7 +1356,7 @@ static void render_ui(void)
         dest.y = 192;
         dest.w = game->player.jetpack * 0.23;
         dest.h = 4;
-        SDL_SetRenderDrawColor(renderer, 0xee, COLOUR_BLACK, COLOUR_BLACK, COLOUR_WHITE);
+        SDL_SetRenderDrawColor(renderer, 0xee, 0x00, 0x00, 0xff);
         SDL_RenderFillRect(renderer, &dest);
     }
 }
@@ -1475,7 +1504,7 @@ static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player)
 static inline uint8_t is_visible(uint16_t px)
 {
     uint8_t posx = px / TILE_SIZE;
-    return posx - game->view_x < 20 && posx - game->view_x >= 0;
+    return posx - game->camera_x < 20 && posx - game->camera_x >= 0;
 }
 
 static void add_debug_msg(char *format, char *msg)
