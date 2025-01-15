@@ -34,11 +34,11 @@ static char debug_msgs[MAX_DEBUG_MESSAGES][1000];
 
 static int init_assets(void);
 
-static bool is_player_tile(uint8_t tile);
-static bool is_enemy_tile(uint8_t tile);
+static bool is_player_tile(uint8_t);
+static bool is_enemy_tile(uint8_t);
 static void check_collisions(void);
 static void process_input(void);
-static void update(float dt);
+static void update(float);
 static void scroll_screen(void);
 static void update_level(void);
 static void start_level(void);
@@ -51,7 +51,7 @@ static void move_enemies(float dt);
 static void pickup_item(uint8_t, uint8_t);
 static void add_score(uint16_t new_score);
 static void clear_input(void);
-static uint8_t update_frame(uint8_t tile, uint8_t salt);
+static uint8_t update_frame(uint8_t, uint8_t);
 
 static void render(void);
 static void render_world(void);
@@ -541,14 +541,17 @@ static void update_level(void)
             if (game->enemies[i].death_timer <= 0) {
                 // TODO:(lukefilewalker) huh? was ist das?
                 game->enemies[i].type = 0;
+                continue;
             }
-        } else {
-            if (game->enemies[i].type) {
-                // If player and enemy collide, everyone dies
-                if (game->enemies[i].x == game->player.x && game->enemies[i].y == game->player.y) {
-                    game->player.death_timer = DEATH_TIME;
-                    game->enemies[i].death_timer = DEATH_TIME;
-                }
+        }
+
+        // TODO:(lukefilewalker) if enemy is dead
+        if (game->enemies[i].type) {
+            // If player and enemy collide, everyone dies
+            if (game->enemies[i].x == game->player.x && game->enemies[i].y == game->player.y) {
+                // Commence with the dying!
+                game->player.death_timer = DEATH_DURATION;
+                game->enemies[i].death_timer = DEATH_DURATION;
             }
         }
     }
@@ -558,190 +561,50 @@ static void start_level(void)
 {
     restart_level();
 
+    // Set game start state for current level
+    game->camera_x = 0;
+    game->camera_y = 0;
+
     for (int i = 0; i < NUM_ENEMIES; i++) {
         game->enemies[i].type = 0;
     }
 
-    switch (game->cur_level) {
-    case LEVEL_3: {
-        game->enemies[0].type = 89;
-        game->enemies[0].px = 44 * TILE_SIZE;
-        game->enemies[0].py = 4 * TILE_SIZE;
-
-        game->enemies[1].type = 89;
-        game->enemies[1].px = 59 * TILE_SIZE;
-        game->enemies[1].py = 4 * TILE_SIZE;
-    } break;
-    case LEVEL_4: {
-        game->enemies[0].type = 93;
-        game->enemies[0].px = 32 * TILE_SIZE;
-        game->enemies[0].py = 2 * TILE_SIZE;
-    } break;
-    case LEVEL_5: {
-        game->enemies[0].type = 97;
-        game->enemies[0].px = 15 * TILE_SIZE;
-        game->enemies[0].py = 3 * TILE_SIZE;
-        game->enemies[1].type = 97;
-        game->enemies[1].px = 33 * TILE_SIZE;
-        game->enemies[1].py = 3 * TILE_SIZE;
-        game->enemies[2].type = 97;
-        game->enemies[2].px = 49 * TILE_SIZE;
-        game->enemies[2].py = 3 * TILE_SIZE;
-    } break;
-    case LEVEL_6: {
-        game->enemies[0].type = 101;
-        game->enemies[0].px = 10 * TILE_SIZE;
-        game->enemies[0].py = 8 * TILE_SIZE;
-        game->enemies[1].type = 101;
-        game->enemies[1].px = 28 * TILE_SIZE;
-        game->enemies[1].py = 8 * TILE_SIZE;
-        game->enemies[2].type = 101;
-        game->enemies[2].px = 45 * TILE_SIZE;
-        game->enemies[2].py = 2 * TILE_SIZE;
-        game->enemies[3].type = 101;
-        game->enemies[3].px = 40 * TILE_SIZE;
-        game->enemies[3].py = 8 * TILE_SIZE;
-    } break;
-    case LEVEL_7: {
-        game->enemies[0].type = 105;
-        game->enemies[0].px = 5 * TILE_SIZE;
-        game->enemies[0].py = 2 * TILE_SIZE;
-        game->enemies[1].type = 105;
-        game->enemies[1].px = 16 * TILE_SIZE;
-        game->enemies[1].py = 1 * TILE_SIZE;
-        game->enemies[2].type = 105;
-        game->enemies[2].px = 46 * TILE_SIZE;
-        game->enemies[2].py = 2 * TILE_SIZE;
-        game->enemies[3].type = 105;
-        game->enemies[3].px = 56 * TILE_SIZE;
-        game->enemies[3].py = 3 * TILE_SIZE;
-    } break;
-    case LEVEL_8: {
-        game->enemies[0].type = 109;
-        game->enemies[0].px = 53 * TILE_SIZE;
-        game->enemies[0].py = 5 * TILE_SIZE;
-        game->enemies[1].type = 109;
-        game->enemies[1].px = 72 * TILE_SIZE;
-        game->enemies[1].py = 2 * TILE_SIZE;
-        game->enemies[2].type = 109;
-        game->enemies[2].px = 84 * TILE_SIZE;
-        game->enemies[2].py = 1 * TILE_SIZE;
-    } break;
-    case LEVEL_9: {
-        game->enemies[0].type = 113;
-        game->enemies[0].px = 35 * TILE_SIZE;
-        game->enemies[0].py = 8 * TILE_SIZE;
-        game->enemies[1].type = 113;
-        game->enemies[1].px = 41 * TILE_SIZE;
-        game->enemies[1].py = 8 * TILE_SIZE;
-        game->enemies[2].type = 113;
-        game->enemies[2].px = 49 * TILE_SIZE;
-        game->enemies[2].py = 8 * TILE_SIZE;
-        game->enemies[3].type = 113;
-        game->enemies[3].px = 65 * TILE_SIZE;
-        game->enemies[3].py = 8 * TILE_SIZE;
-    } break;
-    case LEVEL_10: {
-        game->enemies[0].type = 117;
-        game->enemies[0].px = 45 * TILE_SIZE;
-        game->enemies[0].py = 8 * TILE_SIZE;
-        game->enemies[1].type = 117;
-        game->enemies[1].px = 51 * TILE_SIZE;
-        game->enemies[1].py = 2 * TILE_SIZE;
-        game->enemies[2].type = 117;
-        game->enemies[2].px = 65 * TILE_SIZE;
-        game->enemies[2].py = 3 * TILE_SIZE;
-        game->enemies[3].type = 117;
-        game->enemies[3].px = 82 * TILE_SIZE;
-        game->enemies[3].py = 5 * TILE_SIZE;
-    } break;
-
-    default:
-        break;
+    // Set enemy start state for current level
+    for (size_t i = 0; i < NUM_ENEMIES; i++) {
+        game->enemies[i] = ENEMIES_START_STATE[game->cur_level][i];
     }
+    // TODO:(lukefilewalker) move to enemies[]?
+    game->ebullet_px = 0;
+    game->ebullet_py = 0;
+    game->ebullet_dir = 0;
 
+    // Set player start state for current level
     game->player.px = game->player.x * TILE_SIZE;
     game->player.py = game->player.y * TILE_SIZE;
-    game->player.trophy = 0;
-    game->player.gun = 0;
-    game->player.fire = 0;
-    game->player.using_jetpack = 0;
-    game->player.jetpack = 0;
+    game->player.has_trophy = false;
+    game->player.has_gun = false;
+    game->player.fire = false;
+    game->player.using_jetpack = false;
+    game->player.jetpack_fuel = 0;
     game->player.death_timer = 0;
-    game->player.check_door = 0;
+    game->player.check_door = true;
     game->player.jump_timer = 0;
-    game->camera_x = 0;
-    game->camera_y = 0;
     game->player.last_dir = 0;
     game->player.bullet_px = 0;
     game->player.bullet_py = 0;
     game->player.bullet_dir = 0;
-    game->ebullet_px = 0;
-    game->ebullet_py = 0;
-    game->ebullet_dir = 0;
 }
+
 static void restart_level(void)
 {
-    // Set player positions in level
-    switch (game->cur_level) {
-    case 0: {
-        game->player.x = 2;
-        game->player.y = 8;
-    } break;
-
-    case 1: {
-        game->player.x = 1;
-        game->player.y = 8;
-    } break;
-
-    case 2: {
-        game->player.x = 2;
-        game->player.y = 5;
-    } break;
-
-    case 3: {
-        game->player.x = 1;
-        game->player.y = 5;
-    } break;
-
-    case 4: {
-        game->player.x = 2;
-        game->player.y = 8;
-    } break;
-
-    case 5: {
-        game->player.x = 2;
-        game->player.y = 8;
-    } break;
-
-    case 6: {
-        game->player.x = 1;
-        game->player.y = 2;
-    } break;
-
-    case 7: {
-        game->player.x = 2;
-        game->player.y = 8;
-    } break;
-
-    case 8: {
-        game->player.x = 6;
-        game->player.y = 1;
-    } break;
-
-    case 9: {
-        game->player.x = 2;
-        game->player.y = 8;
-    } break;
-    }
-
+    game->player.x = PLAYER_START_POS[game->cur_level][0];
+    game->player.y = PLAYER_START_POS[game->cur_level][1];
     game->player.px = game->player.x * TILE_SIZE;
     game->player.py = game->player.y * TILE_SIZE;
 }
 
 static void update_pbullet(void)
 {
-
     if (!game->player.bullet_px || !game->player.bullet_py) {
         return;
     }
@@ -769,7 +632,7 @@ static void update_pbullet(void)
 
                 if ((grid_y == my || grid_y == my + 1) && (grid_x == mx || grid_x == mx + 1)) {
                     game->player.bullet_px = game->player.bullet_py = 0;
-                    game->enemies[i].death_timer = DEATH_TIME;
+                    game->enemies[i].death_timer = DEATH_DURATION;
                     add_score(SCORE_ENEMY_KILL);
                 }
             }
@@ -803,7 +666,7 @@ static void update_ebullet(void)
         if ((grid_y == game->player.y || grid_y == game->player.y + 1) &&
             (grid_x == game->player.x || grid_x == game->player.x + 1)) {
             game->ebullet_px = game->ebullet_py = 0;
-            game->player.death_timer = DEATH_TIME;
+            game->player.death_timer = DEATH_DURATION;
         }
     }
 }
@@ -832,11 +695,11 @@ static void verify_input(void)
         game->player.climb = true;
     }
 
-    if (game->player.try_fire && game->player.gun && !game->player.bullet_px && !game->player.bullet_py) {
+    if (game->player.try_fire && game->player.has_gun && !game->player.bullet_px && !game->player.bullet_py) {
         game->player.fire = true;
     }
 
-    if (game->player.try_jetpack && game->player.jetpack && !game->player.jetpack_delay) {
+    if (game->player.try_jetpack && game->player.jetpack_fuel && !game->player.jetpack_delay) {
         game->player.using_jetpack = !game->player.using_jetpack;
         game->player.jetpack_delay = 10;
     }
@@ -891,7 +754,7 @@ static void move_player(float dt)
         game->player.up = 0;
     }
 
-    if (game->player.using_jetpack) {
+    if (game->player.jetpack_fuel) {
         game->player.jump = 0;
         game->player.jump_timer = 0;
     }
@@ -949,7 +812,7 @@ static void move_player(float dt)
         }
 
         game->player.bullet_py = game->player.py + 8;
-        game->player.fire = 0;
+        game->player.fire = false;
     }
 }
 
@@ -1038,16 +901,16 @@ static void pickup_item(uint8_t grid_x, uint8_t grid_y)
 
     switch (type) {
     case TILE_JETPACK: {
-        game->player.jetpack = 0xff;
+        game->player.jetpack_fuel = JETPACK_START_FUEL;
     } break;
 
     case TILE_TROPHY: {
         add_score(SCORE_TROPHY);
-        game->player.trophy = 1;
+        game->player.has_trophy = true;
     } break;
 
     case TILE_GUN: {
-        game->player.gun = 1;
+        game->player.has_gun = true;
     } break;
 
     // TODO:(lukefilewalker) pull these magic nums out
@@ -1209,7 +1072,7 @@ static void render_player(void)
     SDL_RenderCopy(renderer, assets->gfx_tiles[tile_index], NULL, &dest);
 
     // TODO:(lukefilewalker) render player bullet here?
-    // render_player_bullet();
+    render_player_bullet();
 }
 
 static void render_enemies(void)
@@ -1234,7 +1097,7 @@ static void render_enemies(void)
     }
 
     // TODO:(lukefilewalker) Render enemy bullet here?
-    // render_enemies_bullet();
+    render_enemies_bullet();
 }
 
 static void render_player_bullet(void)
@@ -1322,7 +1185,7 @@ static void render_ui(void)
     }
 
     // Trophy icon
-    if (game->player.trophy) {
+    if (game->player.has_trophy) {
         dest.x = 72;
         dest.y = 180;
         dest.w = 176;
@@ -1331,7 +1194,7 @@ static void render_ui(void)
     }
 
     // Gun icon
-    if (game->player.gun) {
+    if (game->player.has_gun) {
         dest.x = 255;
         dest.y = 180;
         dest.w = 62;
@@ -1340,7 +1203,7 @@ static void render_ui(void)
     }
 
     // Jetpack
-    if (game->player.jetpack) {
+    if (game->player.jetpack_fuel) {
         dest.x = 1;
         dest.y = 177;
         dest.w = 62;
@@ -1354,7 +1217,7 @@ static void render_ui(void)
 
         dest.x = 2;
         dest.y = 192;
-        dest.w = game->player.jetpack * 0.23;
+        dest.w = game->player.jetpack_fuel * 0.23; // TODO:(lukefilewalker) check this value :/
         dest.h = 4;
         SDL_SetRenderDrawColor(renderer, 0xee, 0x00, 0x00, 0xff);
         SDL_RenderFillRect(renderer, &dest);
@@ -1462,11 +1325,11 @@ static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player)
     if (is_player) {
         switch (type) {
         case TILE_DOOR: {
-            game->player.check_door = 1;
+            game->player.check_door = true;
         } break;
 
         case TILE_GUN: {
-            game->player.gun = 1;
+            game->player.has_gun = true;
 #ifdef _MSC_VER
             __fallthrough;
 #else
@@ -1489,7 +1352,7 @@ static uint8_t is_clear(uint16_t px, uint16_t py, uint8_t is_player)
         case 25:
         case 36: {
             if (!game->player.death_timer) {
-                game->player.death_timer = DEATH_TIME;
+                game->player.death_timer = DEATH_DURATION;
             }
         } break;
 

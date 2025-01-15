@@ -1,6 +1,7 @@
 #ifndef HH_GAME_H
 #define HH_GAME_H
 
+#include "enemy.h"
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -17,14 +18,12 @@
 
 #define NUM_TILES 158
 #define NUM_LEVELS 10
-#define NUM_ENEMIES 5
 #define NUM_START_LIVES 3
 
 #define SCORE_NEW_LIFE 20000
 #define SCORE_LEVEL_COMPLETION 2000
-#define SCORE_ENEMY_KILL 300
 
-#define DEATH_TIME 30
+#define DEATH_DURATION 30
 
 #define RIGHT_CAMERA_SCROLL_TRIGGER_TILE 18
 #define LEFT_CAMERA_SCROLL_TRIGGER_TILE 2
@@ -39,6 +38,7 @@
 #define BULLET_SPEED 4
 #define BULLET_W 12
 #define BULLET_H 3
+#define JETPACK_START_FUEL 255
 
 #define LEVEL_1 0
 #define LEVEL_2 1
@@ -49,7 +49,7 @@
 #define LEVEL_7 6
 #define LEVEL_8 7
 #define LEVEL_9 8
-#define LEVEL_10 0
+#define LEVEL_10 9
 
 #define TILE_DOOR 2
 #define TILE_JETPACK 4
@@ -81,21 +81,6 @@ static const uint8_t TILES_PLAYER_JETPACK[NUM_TILES_PLAYER_JETPACK] = {77, 78, 7
 #define TILE_JETPACK_LEFT 77
 #define TILE_JETPACK_RIGHT 80
 
-// Enemy tiles
-#define NUM_TILES_ENEMIES 4
-static const uint8_t TILES_ENEMY_LEVEL_TWO[NUM_TILES_ENEMIES] = {89, 90, 91, 92};
-static const uint8_t TILES_ENEMY_LEVEL_THREE[NUM_TILES_ENEMIES] = {93, 94, 95, 96};
-static const uint8_t TILES_ENEMY_LEVEL_FOUR[NUM_TILES_ENEMIES] = {97, 98, 99, 100};
-static const uint8_t TILES_ENEMY_LEVEL_FIVE[NUM_TILES_ENEMIES] = {101, 102, 103, 104};
-static const uint8_t TILES_ENEMY_LEVEL_SIX[NUM_TILES_ENEMIES] = {105, 106, 107, 108};
-static const uint8_t TILES_ENEMY_LEVEL_SEVEN[NUM_TILES_ENEMIES] = {109, 110, 111, 112};
-static const uint8_t TILES_ENEMY_LEVEL_EIGHT[NUM_TILES_ENEMIES] = {113, 114, 115, 116};
-static const uint8_t TILES_ENEMY_LEVEL_NINE[NUM_TILES_ENEMIES] = {117, 118, 119, 120};
-#define TILE_ENEMY_SPIDER 89
-#define TILE_ENEMY_PURPER 93
-#define TILE_ENEMY_BULLET_LEFT 121
-#define TILE_ENEMY_BULLET_RIGHT 124
-
 // General tiles
 #define NUM_TILES_DEATH 4
 static const uint8_t TILES_DEATH[NUM_TILES_DEATH] = {129, 130, 131, 132};
@@ -109,6 +94,19 @@ static const uint8_t TILES_DEATH[NUM_TILES_DEATH] = {129, 130, 131, 132};
 // Scores
 #define SCORE_TROPHY 1000
 
+static const uint8_t PLAYER_START_POS[10][2] = {
+    {2, 8},
+    {1, 8},
+    {2, 5},
+    {1, 5},
+    {2, 8},
+    {2, 8},
+    {1, 2},
+    {2, 8},
+    {6, 1},
+    {2, 8},
+};
+
 typedef struct {
     uint8_t path[256];
     uint8_t tiles[1000];
@@ -116,8 +114,10 @@ typedef struct {
 } level_t;
 
 typedef struct {
+    // Tile grid numbers/locations are 8bit ints. [-128, 127] as there 20x10 tiles
     int8_t x;
     int8_t y;
+    // Tile pixel x,y locations are 16bit ints. [-32378, 32377] as there ??x?? pixels in the window
     int16_t px;
     int16_t py;
 
@@ -147,13 +147,13 @@ typedef struct {
     uint8_t jump_timer;
 
     int8_t last_dir;
-    uint8_t on_ground;
-    uint8_t check_pickup_x;
-    uint8_t check_pickup_y;
-    uint8_t check_door;
-    uint8_t can_climb;
+    bool on_ground;
+    bool check_pickup_x;
+    bool check_pickup_y;
+    bool check_door;
+    bool can_climb;
     bool has_trophy;
-    uint8_t gun;
+    bool has_gun;
     uint8_t jetpack_fuel;
     uint8_t jetpack_delay;
 
@@ -161,19 +161,6 @@ typedef struct {
     uint16_t bullet_py;
     int8_t bullet_dir;
 } player_t;
-
-typedef struct {
-    uint8_t type;
-    uint8_t path_index;
-    uint8_t death_timer;
-
-    uint8_t x;
-    uint8_t y;
-    uint16_t px;
-    uint16_t py;
-    int8_t next_px;
-    int8_t next_py;
-} enemy_t;
 
 typedef struct {
     bool debug;
