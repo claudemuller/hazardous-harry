@@ -1,16 +1,16 @@
 #ifndef HH_ENEMY_H
 #define HH_ENEMY_H
 
+#include "common.h"
 #include <stdint.h>
 
 #define NUM_ENEMIES 5
-#define NUM_LEVELS 10 // TODO:(lukefilewalker) recursive inculde - how fix/forward declare?
-#define TILE_SIZE 16  // TODO:(lukefilewalker) recursive inculde - how fix/forward declare?
 
 #define SCORE_ENEMY_KILL 300
 
 // Enemy tiles
 #define NUM_TILES_ENEMIES 4
+// TODO:(lukefilewalker) change these names to reflect the enemy name e.g. PURPLER
 static const uint8_t TILES_ENEMY_LEVEL_TWO[NUM_TILES_ENEMIES] = {89, 90, 91, 92};
 static const uint8_t TILES_ENEMY_LEVEL_THREE[NUM_TILES_ENEMIES] = {93, 94, 95, 96};
 static const uint8_t TILES_ENEMY_LEVEL_FOUR[NUM_TILES_ENEMIES] = {97, 98, 99, 100};
@@ -42,6 +42,6 @@ typedef struct {
     int8_t next_py;
 } enemy_t;
 
-const enemy_t ENEMIES_START_STATE[NUM_LEVELS][NUM_ENEMIES];
+extern const enemy_t ENEMIES_START_STATE[NUM_LEVELS][NUM_ENEMIES];
 
 #endif // HH_ENEMY_H

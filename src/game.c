@@ -1,7 +1,5 @@
 #include "game.h"
-#include "SDL_rect.h"
-#include "SDL_render.h"
-#include "SDL_surface.h"
+#include "common.h"
 #include "error.h"
 #include "log.h"
 #include "utils.h"
@@ -26,6 +24,7 @@ static game_assets_t *assets;
 static SDL_Window *window;
 static SDL_Renderer *renderer;
 static TTF_Font *font;
+static SDL_GameController *controller;
 
 // TODO:(lukefilewalker): make this better :( i.e. game debug funcs or encapsulate this or something
 #define MAX_DEBUG_MESSAGES 20
@@ -37,7 +36,8 @@ static int init_assets(void);
 static bool is_player_tile(uint8_t);
 static bool is_enemy_tile(uint8_t);
 static void check_collisions(void);
-static void process_input(void);
+static void process_controller_input(void);
+static void process_keyboard_input(void);
 static void update(float);
 static void scroll_screen(void);
 static void update_level(void);
@@ -125,7 +125,7 @@ int game_init(const bool debug)
 
     LOG_INFO("game_init", "initialising SDL");
 
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
         return err_fatal(ERR_SDL_INIT, SDL_GetError());
     }
 
@@ -155,6 +155,23 @@ int game_init(const bool debug)
         return err_fatal(err, NULL);
     }
 
+    uint8_t num_joysticks = SDL_NumJoysticks();
+    LOG_INFO("game_init", "Number of joysticks: %d", num_joysticks);
+
+    if (num_joysticks > 0) {
+        // NOTE: we only handle one controller
+        if (SDL_IsGameController(0)) {
+            controller = SDL_GameControllerOpen(0);
+            if (controller) {
+                LOG_INFO("game_init", "Opened game controller: %s", SDL_GameControllerName(controller));
+            } else {
+                LOG_INFO("game_init", "Could not open game controller 0: %s", SDL_GetError());
+            }
+        } else {
+            LOG_INFO("game_init", "Joystick is not a game controller.");
+        }
+    }
+
     game->is_running = true;
 
     return SUCCESS;
@@ -171,7 +188,8 @@ int game_run(void)
     while (game->is_running) {
         timer_start = SDL_GetTicks();
 
-        process_input();
+        process_controller_input();
+        process_keyboard_input();
 
         // uint32_t current_ticks = SDL_GetTicks();
         // int time_to_wait = FRAME_TIME_LEN - (current_ticks - game->ticks_last_frame);
@@ -208,6 +226,9 @@ int game_destroy(void)
 {
     LOG_INFO("game_destroy", "cleaning up");
 
+    if (controller) {
+        SDL_GameControllerClose(controller);
+    }
     free(assets);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
@@ -367,7 +388,39 @@ static void check_collisions(void)
     }
 }
 
-static void process_input(void)
+#define DEAD_ZONE 8000
+
+static void process_controller_input(void)
+{
+    if (controller) {
+        int16_t left_x = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTX);
+        int16_t left_y = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTY);
+
+        if (left_x < -DEAD_ZONE) {
+            game->player.try_left = true;
+        } else if (left_x > DEAD_ZONE) {
+            game->player.try_right = true;
+        }
+
+        if (left_y < -DEAD_ZONE) {
+            game->player.try_up = true;
+        } else if (left_y > DEAD_ZONE) {
+            game->player.try_down = true;
+        }
+
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_A)) {
+            game->player.try_jump = true;
+        }
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_X)) {
+            game->player.try_jetpack = true;
+        }
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_B)) {
+            game->player.try_fire = true;
+        }
+    }
+}
+
+static void process_keyboard_input(void)
 {
     SDL_PumpEvents();
     const uint8_t *keystate = SDL_GetKeyboardState(NULL);
@@ -516,7 +569,7 @@ static void update_level(void)
     }
 
     // If the player is dying
-    if (game->player.death_timer >= 0) {
+    if (game->player.death_timer > 0) {
         game->player.death_timer--;
         // If player has died
         if (game->player.death_timer <= 0) {
@@ -1006,6 +1059,14 @@ static void render_world(void)
         .w = TILE_SIZE,
         .h = TILE_SIZE,
     };
+
+    // uint16_t width = 320 * DISPLAY_SCALE;
+    // for (size_t i = 0; i < 156; i++) {
+    //     dest.y = ((TILE_SIZE * i) / width) * TILE_SIZE + TILE_SIZE;
+    //     dest.x = (i * TILE_SIZE) % width;
+    //     SDL_RenderCopy(renderer, assets->gfx_tiles[i], NULL, &dest);
+    // }
+    // return;
 
     for (int i = 0; i < 10; i++) {
         // Move everything down a tile for the UI

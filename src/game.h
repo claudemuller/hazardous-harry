@@ -1,6 +1,7 @@
 #ifndef HH_GAME_H
 #define HH_GAME_H
 
+#include "common.h"
 #include "enemy.h"
 #include <SDL2/SDL.h>
 #include <stdbool.h>
@@ -12,12 +13,10 @@
 #define DISPLAY_SCALE 3
 #define DATA_FNAME_SIZE 20
 #define ASSET_FNAME_SIZE 23
-#define TILE_SIZE 16
 #define GAME_AREA_TOP 100
 #define GAME_AREA_BOTTOM 10
 
 #define NUM_TILES 158
-#define NUM_LEVELS 10
 #define NUM_START_LIVES 3
 
 #define SCORE_NEW_LIFE 20000
