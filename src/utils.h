@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#ifndef _WIN32
 void itoa(int value, char *str, int base)
 {
     if (base == 10) {
@@ -18,6 +19,7 @@ void itoa(int value, char *str, int base)
         str[0] = '\0';
     }
 }
+#endif
 
 bool in_array(const uint8_t *haystack, const uint8_t needle, const size_t len)
 {

@@ -3,7 +3,7 @@
 #include "error.h"
 #include "log.h"
 #include "utils.h"
-#include <SDL2/SDL_ttf.h>
+#include <SDL_ttf.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>

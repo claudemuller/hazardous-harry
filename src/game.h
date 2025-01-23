@@ -3,7 +3,7 @@
 
 #include "common.h"
 #include "enemy.h"
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include <stdbool.h>
 #include <stdint.h>
 
